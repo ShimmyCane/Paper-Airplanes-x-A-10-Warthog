@@ -19,6 +19,7 @@
     "src/voxel.ts",
     "src/assets/models.ts",
     "src/flight.ts",
+    "src/drone.ts",
     "src/audio.ts",
     "src/family.ts",
     "src/notes.ts",

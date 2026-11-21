@@ -159,6 +159,44 @@ canvas {
 body.glider .actions { display: none; }
 .c-mint { background: var(--sage); }
 
+/* Throttle lever (jet, flight helper off): left of the action buttons. It stays where it is left. */
+.throttle {
+  position: absolute;
+  right: 146px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  width: 70px;
+  height: var(--stick);
+  min-height: 160px;
+  border: 3px solid var(--ink);
+  border-radius: 20px;
+  background: rgba(255, 253, 247, 0.6);
+  box-shadow: 0 4px 0 var(--ink);
+  display: none;
+  touch-action: none;
+}
+body.jet.manual .throttle { display: block; }
+.throttleFill {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: var(--sun);
+  border-radius: 0 0 16px 16px;
+  opacity: 0.8;
+  pointer-events: none;
+}
+.throttleGrip {
+  position: absolute; left: 6px; right: 6px; height: 22px;
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  background: var(--coral);
+  transform: translateY(50%);
+  pointer-events: none;
+}
+.throttleLabel {
+  position: absolute; top: -26px; left: -10px; right: -10px;
+  background: var(--card); border: 2px solid var(--ink); border-radius: 10px;
+  text-align: center; font-weight: 800; font-size: 14px;
+  pointer-events: none;
+}
+
 /* First-run tutorial: a card in the middle, tap to start. */
 .tutorial {
   position: absolute;
@@ -476,3 +514,49 @@ textarea.field { resize: vertical; font-size: 15px; }
 .missionCard p { margin: 0; font-weight: 700; font-size: 14px; }
 
 .objective:empty { display: none; }
+
+/* Drone flight: two thumb sticks like a transmitter, a race bar and the start countdown. */
+.pad {
+  position: absolute;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  width: var(--stick);
+  aspect-ratio: 1;
+  min-width: 140px;
+  border: 3px solid var(--ink);
+  border-radius: 24px;
+  background: rgba(255, 253, 247, 0.55);
+  box-shadow: 0 4px 0 var(--ink);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+.padL { left: 18px; }
+.padR { right: 18px; }
+body.drone .pad { display: flex; }
+body.drone .actions, body.drone .stick, body.drone .throttle, body.drone .radar { display: none !important; }
+.padLabel {
+  position: absolute; top: -24px; left: 0; right: 0;
+  text-align: center; font-weight: 800; font-size: 12px;
+  pointer-events: none;
+}
+.pad .knob { transition: none; }
+.raceBar {
+  position: absolute; left: 50%; top: 88px; transform: translateX(-50%);
+  margin: 0; padding: 3px 14px;
+  background: rgba(255, 253, 247, 0.9);
+  border: 2px solid var(--ink); border-radius: 999px;
+  font-weight: 800; white-space: nowrap;
+}
+.countdown {
+  position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%);
+  margin: 0; font-size: clamp(48px, 12vw, 110px); font-weight: 900;
+  color: var(--card); -webkit-text-stroke: 3px var(--ink);
+  pointer-events: none;
+}
+.droneOnly { display: none; }
+body.drone .droneOnly { display: block; }
+body.drone .objective { display: none; }
+body.drone .hud > :not(.keep), body.drone .jetOnly { display: none; }
+body.drone .gear { top: 12px; bottom: auto; }
+body.drone .drawer { top: 92px; bottom: auto; }

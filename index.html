@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Paper Airplanes × A-10 Warthog</title>
-  <link rel="stylesheet" href="css/app.css?v=0.18">
+  <link rel="stylesheet" href="css/app.css?v=0.20">
 </head>
 <body>
   <main class="play" id="play">
@@ -13,7 +13,7 @@
     <header class="hud" aria-live="polite">
       <span class="pill">★ <b id="score">0</b></span>
       <span class="pill">🎯 <b id="kills">0</b></span>
-      <span class="pill">🪟 <b id="hoops">—</b></span>
+      <span class="pill keep">🪟 <b id="hoops">—</b></span>
       <span class="pill">🔫 <b id="ammo">240</b></span>
       <span class="pill">🚀 <b id="missile">6/6</b></span>
       <span class="pill">✨ <b id="chaff">4</b></span>
@@ -24,7 +24,7 @@
     <div class="readout" aria-hidden="true">
       <span id="speed">0 kt</span>
       <span id="alt">0 m</span>
-      <span id="aoa">0°</span>
+      <span id="aoa" class="jetOnly">0°</span>
       <span class="stall" id="stall" hidden>STALL</span>
     </div>
 
@@ -59,6 +59,17 @@
       <button type="button" data-k="boost" class="c-sun">BOOST</button>
     </nav>
 
+    <div class="throttle" id="throttle" aria-label="Throttle">
+      <div class="throttleFill" id="throttleFill"></div>
+      <div class="throttleGrip" id="throttleGrip"></div>
+      <span class="throttleLabel" id="throttleLabel">36%</span>
+    </div>
+
+    <div class="pad padL" id="padL" aria-label="Left stick"><div class="knob" id="knobL"></div><span class="padLabel" id="padLabelL"></span></div>
+    <div class="pad padR" id="padR" aria-label="Right stick"><div class="knob" id="knobR"></div><span class="padLabel" id="padLabelR"></span></div>
+    <p class="raceBar" id="raceBar" hidden></p>
+    <p class="countdown" id="countdown" hidden></p>
+
     <div class="stick" id="stick" aria-label="Joystick">
       <div class="knob" id="knob"></div>
     </div>
@@ -83,7 +94,7 @@
                 <button type="button" data-v="normal">Normal</button>
                 <button type="button" data-v="felix">Felix (easy)</button>
               </div>
-              <p class="hint">Normal: limited ammo and missiles, and three hits takes the plane down. Missions restock you when the objective is done. Felix: the plane never goes down and nothing runs out.</p>
+              <p class="hint">Normal: limited ammo and missiles. Missiles from SAMs and fighters hurt most; ship and flak guns less; tank machine guns only scratch (and cannot aim up). Missions restock you when the objective is done. Felix: the plane never goes down and nothing runs out.</p>
               <button class="wide" id="reloadBtn" type="button">Reload the gun and missiles</button>
               <p class="hint" id="reloadHint" role="status"></p>
             </div>
@@ -92,8 +103,28 @@
               <div class="seg" data-key="mode">
                 <button type="button" data-v="jet">A-10 jet</button>
                 <button type="button" data-v="glider">Paper glider</button>
+                <button type="button" data-v="drone">Drone</button>
               </div>
-              <p class="hint">Changing this starts a new flight.</p>
+              <p class="hint">Changing this starts a new flight. Drone: from paper planes and the 1950s jet to the drones of today. A timed race round a loop of gates, against three rivals.</p>
+            </div>
+            <div class="setting droneOnly">
+              <label>Drone</label>
+              <div class="seg" data-key="droneKind">
+                <button type="button" data-v="hobby">Hobby</button>
+                <button type="button" data-v="camera">Camera (DJI-style)</button>
+                <button type="button" data-v="racer">Racer (FPV)</button>
+                <button type="button" data-v="military">Military</button>
+              </div>
+              <p class="hint" id="droneHint"></p>
+            </div>
+            <div class="setting droneOnly">
+              <label>Sticks (transmitter mode)</label>
+              <div class="seg" data-key="stickMode">
+                <button type="button" data-v="mode2">Mode 2</button>
+                <button type="button" data-v="mode1">Mode 1</button>
+                <button type="button" data-v="mode3">Mode 3</button>
+              </div>
+              <p class="hint" id="stickHint"></p>
             </div>
             <div class="setting">
               <label>Camera view</label>
@@ -120,6 +151,14 @@
       <summary>🎛️ Other toggles</summary>
       <details class="group">
         <summary>🛡️ Safety and reload</summary>
+      <div class="setting">
+        <label>Flight helper</label>
+        <div class="seg" data-key="flightHelp">
+          <button type="button" data-v="1">On</button>
+          <button type="button" data-v="0">Off</button>
+        </div>
+        <p class="hint">On: the nose stops short of a stall, and the engine adds power on its own when the plane slows below 100 knots. BOOST still gives full power. Off: real flying. A throttle lever appears left of the buttons (or R and F keys); you watch the speed yourself. The paper glider keeps the stall guard.</p>
+      </div>
       <div class="setting">
         <label>Safe flight</label>
         <div class="seg" data-key="safeFlight">
@@ -261,6 +300,14 @@
     </details>
 
     <details class="group">
+      <summary>🗄️ Archived</summary>
+      <div class="under">
+        <p><a href="v2/index.html">Version 2</a>: the jet game with the flight helper (0.19, 2026-11-21).</p>
+        <p><a href="v1/index.html">Version 1</a>: the first airplane game.</p>
+      </div>
+    </details>
+
+    <details class="group">
       <summary>🔢 Version</summary>
       <p class="version" id="version"></p>
     </details>
@@ -287,6 +334,6 @@
 
   <div class="errorsPanel" id="errorsPanel" hidden></div>
 
-  <script src="js/game.js?v=0.18"></script>
+  <script src="js/game.js?v=0.20"></script>
 </body>
 </html>

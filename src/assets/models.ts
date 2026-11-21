@@ -360,10 +360,60 @@ namespace PA {
     return v;
   }
 
+  // A quadcopter seen from above: a body in the middle, four arms in an X, a motor and a
+  // spinning-blur rotor disc at each tip, and a camera or light at the front (y = 0 side).
+  //   n: grid size; size: metres per voxel; long: arms longer front to back (a camera drone's)
+  function quad(n: number, size: number, body: number, arm: number, prop: number, accent: number, long = 1, gimbal = false, lights = true): Voxels {
+    const v = new Voxels(n, n, 6, size);
+    const c = (n - 1) / 2;
+    const reach = c - 2.2;
+    // Arms in an X.
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      for (let t = 0; t <= 1; t += 0.04) {
+        const x = Math.round(c + sx * reach * t), y = Math.round(c + sy * reach * long * t);
+        v.set(x, y, 2, arm);
+        v.set(x + (sx > 0 ? -1 : 1), y, 2, arm);
+      }
+      // Motor and rotor disc.
+      const mx = c + sx * reach, my = c + sy * reach * long;
+      v.ellipsoid(mx, my, 2.5, 0.9, 0.9, 1.2, 0x2b2f36);
+      const rr = Math.max(2, n * 0.17);
+      for (let dx = -rr; dx <= rr; dx++) {
+        for (let dy = -rr; dy <= rr; dy++) {
+          const d = Math.hypot(dx, dy);
+          if (d <= rr && d > 0.8) v.set(Math.round(mx + dx), Math.round(my + dy), 4, d > rr - 1 ? accent : prop);
+        }
+      }
+    }
+    // Body, with a camera or light at the front.
+    v.ellipsoid(c, c, 2.5, n * 0.14, n * 0.2 * long, 1.6, body);
+    v.box(Math.round(c - 1), Math.round(c - n * 0.2 * long) - 1, 1, Math.round(c + 1), Math.round(c - n * 0.2 * long) + 1, 3, gimbal ? 0x1b1e24 : accent);
+    if (gimbal) v.ellipsoid(c, c - n * 0.2 * long - 1, 1, 1.2, 1.2, 1.2, 0x3a3f48);
+    if (lights) {
+      v.set(Math.round(c - reach), Math.round(c - reach * long), 1, 0x55e07a);
+      v.set(Math.round(c + reach), Math.round(c - reach * long), 1, 0xff5a5a);
+    }
+    return v;
+  }
+
+  // A military quad: bigger and darker, with a sensor ball under the nose and a long body.
+  function militaryDrone(): Voxels {
+    const v = quad(26, 0.05, 0x5b6450, 0x474e3f, 0x3a3f36, 0x6d775f, 1.1, true, false);
+    v.box(11, 9, 3, 15, 17, 4, 0x6a735d);                          // a payload box on the back
+    return v;
+  }
+
   // Every model by name. City towers and trees have several versions.
   export const MODEL_BUILDERS: { [name: string]: Build } = {
     plane: a10,
     glider,
+    drone_hobby: () => quad(18, 0.012, 0xffffff, 0xd9dde3, 0xbfe3ff, 0x6cc4ff),
+    drone_camera: () => quad(22, 0.018, 0x9aa1a8, 0x7d848c, 0xd8dde2, 0x5c6168, 1.15, true),
+    drone_racer: () => quad(20, 0.012, 0x22262e, 0x2f343c, 0xffd36b, 0xff6b4a),
+    drone_military: militaryDrone,
+    rival1: () => quad(20, 0.05, 0xf26b5b, 0x2f343c, 0xffd7cf, 0xc04434),
+    rival2: () => quad(20, 0.05, 0x4f8fe0, 0x2f343c, 0xd3e5ff, 0x2e5d9e),
+    rival3: () => quad(20, 0.05, 0xf4c84a, 0x2f343c, 0xfff1c2, 0xc9971f),
     fighter: () => fighter(0xc4515a, 0x8e3640, 0x2f3b4a),
     ally: () => fighter(0x4f8fe0, 0x2e5d9e, 0xffd77a),
     jet: () => fighter(0xc9ced3, 0x9aa1a8, 0x3a4652),

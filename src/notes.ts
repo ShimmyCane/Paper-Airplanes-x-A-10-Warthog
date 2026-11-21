@@ -116,7 +116,7 @@ namespace PA {
       SPD: Math.round(p.speed * 1.94),
       AOA: Math.round((p.alpha * 180) / Math.PI),
       VIEW: settings.view,
-      PLANE: settings.mode === 'glider' ? 'paper glider' : 'A-10 jet',
+      PLANE: settings.mode === 'drone' ? (settings.droneKind || 'camera') + ' drone' : settings.mode === 'glider' ? 'paper glider' : 'A-10 jet',
       MISS: g.missileStock,
       GUN: g.aim.mode === 'ground' ? Number(((Math.abs(g.aim.pitch) * 180) / Math.PI).toFixed(1)) : 0,
       LEFT: g.mission.targets.filter(t => t.alive).length,
@@ -127,7 +127,7 @@ namespace PA {
   }
 
   export function subProject(settings: Settings): string {
-    return (settings.mode === 'glider' ? 'paper glider' : 'A-10 jet') + ' / ' + settings.view;
+    return (settings.mode === 'drone' ? (settings.droneKind || 'camera') + ' drone' : settings.mode === 'glider' ? 'paper glider' : 'A-10 jet') + ' / ' + settings.view;
   }
 
   export function statusCount(list: Note[]): { open: number; done: number; closed: number } {

@@ -24,6 +24,12 @@ namespace PA {
     turnRate: 1.0,    // radians per second of yaw at full steering
     bankMax: 0.6,     // radians of bank at full steering (the wings tilt into the turn)
     stability: 0.5,   // the tail pulls the nose back toward the flight path
+    // The flight helper (a setting, on by default): what a modern jet's computer does.
+    alphaGuard: 0.2,  // radians (about 11 degrees): the nose stops short of the stall angle
+    cruiseSpeed: 52,  // m/s, about 100 knots: the engine adds power below this
+    autoGain: 0.08,   // extra throttle for each m/s short of the cruise speed
+    slowSpeed: 38,    // m/s, about 75 knots: slower than this in a climb, the nose eases down
+    noseDrop: 0.5,    // radians per second of nose-down when slow (full at 10 m/s under slowSpeed)
   };
 
   export interface Pilot {
@@ -50,6 +56,7 @@ namespace PA {
     lift: Vec = [0, 0];
     drag: Vec = [0, 0];
     weight: Vec = [0, 0];
+    assist = false;   // the flight helper: stall guard and automatic speed
 
     constructor(public readonly engine: boolean) {}
 
@@ -75,11 +82,25 @@ namespace PA {
       this.pitch += pilot.pitch * AIR.pitchRate * dt;
       this.yaw += pilot.yaw * AIR.turnRate * dt;
       this.bank += (pilot.yaw * AIR.bankMax - this.bank) * Math.min(1, dt * 4);
-      if (this.engine) this.throttle = clamp01(pilot.throttle);
-
       const v = this.speed;
+      if (this.engine) {
+        let thr = clamp01(pilot.throttle);
+        // Automatic speed: below cruise speed the engine adds power on its own.
+        if (this.assist) thr = Math.max(thr, clamp01(thr + AIR.autoGain * (AIR.cruiseSpeed - v)));
+        this.throttle = thr;
+      }
+
       const gamma = v > 0.01 ? Math.atan2(this.vy, this.vx) : this.pitch;
       this.pitch -= AIR.stability * (this.pitch - gamma) * dt;
+      // Stall guard: the nose cannot be pulled (or pushed) past the guard angle.
+      if (this.assist) {
+        const off = this.pitch - gamma;
+        if (off > AIR.alphaGuard) this.pitch = gamma + AIR.alphaGuard;
+        else if (off < -AIR.alphaGuard) this.pitch = gamma - AIR.alphaGuard;
+        // Too slow in a climb: the nose eases down to win speed back.
+        const slow = clamp01((AIR.slowSpeed - v) / 10);
+        if (slow > 0 && this.pitch > 0) this.pitch -= AIR.noseDrop * slow * dt;
+      }
       const alpha = this.pitch - gamma;
       this.alpha = alpha;
 

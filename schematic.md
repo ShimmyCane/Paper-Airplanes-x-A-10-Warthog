@@ -48,7 +48,8 @@ Learn how a sprite game is made by building a small one: a chase view, a flight 
 - Drag = q × (0.06 + 0.03 × cl²). Thrust up to 6 along the nose. Weight 9.8 (mass 1).
 - The tail pulls the nose toward the flight path (stability 0.5/s).
 - Steering turns the heading at up to 1 rad/s and banks the wings up to 0.6 rad.
-- Checked in `tools/flight_test.js`: level flight holds height, full power climbs, a steep nose stalls, the glider lands, the ground stops the plane, right steering turns right.
+- **Flight helper** (setting, on by default): stall guard at 0.2 rad (about 11°); below 52 m/s (100 kt) the engine adds 0.08 throttle per m/s short; below 38 m/s in a climb the nose eases down (up to 0.5 rad/s). Numbers in `AIR`.
+- Checked in `tools/flight_test.js`: level flight holds height, full power climbs, a steep nose stalls, the helper stops the stall and brings the speed back, the glider lands, the ground stops the plane, right steering turns right.
 
 ## Settings (⚙️)
 
@@ -126,3 +127,16 @@ Flight: plane (A-10 jet / paper glider), steering (drag / joystick), new flight.
 - **Burning wrecks:** destroyed ground targets leave a charred wreck that burns, smokes and goes out (`WRECK_LIFE` 50 s).
 - **Wind** (`WIND` in `world.ts`) leans wreck smoke, chimney smoke and flags the same way.
 - **Flags** wave at every base.
+
+## Round 12 (0.12): the flight helper
+
+- **Stall guard, automatic speed and a slow-speed nose drop** in `Aircraft.step` (`assist`), set from `settings.flightHelp`. See `convo/convo v0.19.md`.
+- **Why:** the nose passed the stall angle in a quarter of a second, and the fixed cruise throttle could not hold speed in a climb.
+
+## Round 13 (0.20): v2 archived, real enemy fire, radar arrow, throttle lever, drone flight
+
+- **v2** (`v2/`): the jet game with the flight helper, frozen. Linked from ⚙️ › Archived.
+- **Throttle lever** (`#throttle`, `Game.throttleSet`): shown in the jet with the flight helper off.
+- **Weapons** (`Gun` in `src/world.ts`): `type` (mg, flak, cannon, sam), `dmg`, `elev` (highest aim), `spread`. `Game.fireAt` leads the plane, scatters by `spread`, and flashes at the gun; SAMs call `launchEnemyMissile` (with `src`). Missiles do `MISSILE_DAMAGE` (45).
+- **Red arrow:** `Game.tagArrow` (bearing from the nose), from a half-second history (`TAG_ARROW_DELAY`); drawn in `warnRing`.
+- **Drone flight** (`src/drone.ts`): `Drone extends Aircraft`; `DRONES` holds the four kinds; `sticksFrom` maps two pads to throttle, yaw, pitch and roll for Mode 2, 1 and 3. The race (`Game.race`, `Game.rivals`, `droneCourse()` in `world.ts`): 14 gates with a heading, two laps, gates in order, crash penalty 3 s. Camera: `DRONE_VIEWS` in `render.ts` (chase 5.5 m back, top-down, FPV with a gimbal or a fixed camera). Models `drone_*` and `rival1-3` in `models.ts`.
