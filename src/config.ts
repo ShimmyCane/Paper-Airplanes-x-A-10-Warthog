@@ -1,11 +1,11 @@
 // Shared numbers for the whole game. Change a number here, rebuild, reload.
 namespace PA {
-  export const VERSION = '0.1.0';
+  export const VERSION = '0.18 (2026-11-21: curved vapour, burning wrecks, wind, flags)';
 
   // Internal resolution. The canvas is small on purpose: every pixel is a
   // "pixel-art pixel", and the page scales it up with no smoothing.
-  export const W = 400;
-  export const H = 225;
+  export const W = 480;
+  export const H = 270;
 
   // Side view, 2.5D: screen pixels per metre, across and up.
   export const PPM_X = 2;
