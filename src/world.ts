@@ -100,30 +100,36 @@ namespace PA {
 
   // Every kind of thing that can be hit.
   //   r, height: the hit box in metres; hp: hits to destroy; points: score
-  //   gun: it shoots at the plane (range in m, seconds between shots, shell speed)
+  //   gun: it shoots at the plane (range in m, seconds between shots, shell speed), with
+  //   type (mg: a machine gun, weak and scattered; flak: an anti-aircraft gun that bursts;
+  //   cannon: a ship's or base turret's gun; sam: it launches a homing missile), hull damage
+  //   per hit (of 100), and the highest angle it can aim up (radians). A tank's gun cannot
+  //   aim up at a plane overhead; flak and SAMs can.
+  export type GunType = 'mg' | 'flak' | 'cannon' | 'sam';
+  export interface Gun { range: number; cool: number; speed: number; type: GunType; dmg: number; elev: number; spread: number }
   export interface KindInfo {
     r: number; height: number; hp: number; points: number;
-    gun?: { range: number; cool: number; speed: number };
+    gun?: Gun;
     group: 'army' | 'farm' | 'town' | 'airfield' | 'port' | 'rail' | 'air';
   }
 
   export const KINDS: { [k: string]: KindInfo } = {
-    tank_mbt:   { r: 2.6, height: 2.6, hp: 2, points: 100, group: 'army' },
-    tank_light: { r: 2.2, height: 2.0, hp: 1, points: 60, group: 'army' },
-    apc:        { r: 2.4, height: 2.2, hp: 1, points: 50, group: 'army' },
+    tank_mbt:   { r: 2.6, height: 2.6, hp: 2, points: 100, group: 'army', gun: { range: 350, cool: 1.4, speed: 320, type: 'mg', dmg: 4, elev: 0.3, spread: 0.05 } },
+    tank_light: { r: 2.2, height: 2.0, hp: 1, points: 60, group: 'army', gun: { range: 320, cool: 1.6, speed: 320, type: 'mg', dmg: 4, elev: 0.3, spread: 0.05 } },
+    apc:        { r: 2.4, height: 2.2, hp: 1, points: 50, group: 'army', gun: { range: 320, cool: 1.2, speed: 320, type: 'mg', dmg: 4, elev: 0.6, spread: 0.06 } },
     truck:      { r: 2.0, height: 2.6, hp: 1, points: 40, group: 'farm' },
     fuel:       { r: 2.6, height: 2.6, hp: 1, points: 60, group: 'airfield' },
-    sam:        { r: 3.0, height: 3.5, hp: 2, points: 150, group: 'army', gun: { range: 520, cool: 4, speed: 150 } },
-    flak:       { r: 2.0, height: 3.0, hp: 1, points: 80, group: 'army', gun: { range: 260, cool: 2, speed: 120 } },
+    sam:        { r: 3.0, height: 3.5, hp: 2, points: 150, group: 'army', gun: { range: 1100, cool: 10, speed: 170, type: 'sam', dmg: 45, elev: 1.5, spread: 0 } },
+    flak:       { r: 2.0, height: 3.0, hp: 1, points: 80, group: 'army', gun: { range: 650, cool: 1.8, speed: 240, type: 'flak', dmg: 12, elev: 1.5, spread: 0.025 } },
     farm:       { r: 4.0, height: 4.0, hp: 1, points: 30, group: 'farm' },
     barn:       { r: 4.0, height: 3.5, hp: 1, points: 40, group: 'farm' },
     city:       { r: 3.0, height: 12, hp: 3, points: 120, group: 'town' },
     barracks:   { r: 5.0, height: 3.0, hp: 2, points: 120, group: 'army' },
     hangar:     { r: 6.0, height: 5.0, hp: 3, points: 200, group: 'airfield' },
     jet:        { r: 3.0, height: 2.5, hp: 1, points: 150, group: 'airfield' },
-    ship:       { r: 6.0, height: 3.0, hp: 4, points: 250, group: 'port' },
+    ship:       { r: 6.0, height: 3.0, hp: 4, points: 250, group: 'port', gun: { range: 800, cool: 2.6, speed: 280, type: 'cannon', dmg: 20, elev: 1.2, spread: 0.015 } },
     rail:       { r: 2.5, height: 2.5, hp: 1, points: 40, group: 'rail' },
-    fighter:    { r: 4.5, height: 3.0, hp: 1, points: 200, group: 'air', gun: { range: 380, cool: 2.6, speed: 230 } },
+    fighter:    { r: 4.5, height: 3.0, hp: 1, points: 200, group: 'air', gun: { range: 380, cool: 2.6, speed: 330, type: 'mg', dmg: 6, elev: 1.6, spread: 0.03 } },
     ally:       { r: 3.0, height: 2.5, hp: 1, points: -300, group: 'air' },
   };
 

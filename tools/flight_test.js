@@ -428,5 +428,33 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   check('bases: a base comes up ahead with towns and defending allies', cities1 >= cities0 + 3 && allies === 2, 'cities ' + cities1 + ', base allies ' + allies);
 }
 
+// 30. Enemy fire has a source and fits the weapon: a tank cannot shoot up, flak can, a SAM launches a missile.
+{
+  const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 0, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0, flightHelp: 1 };
+  const setup = (kind, X, Z, h) => {
+    const g = new PA.Game(st);
+    g.onSound = () => {};
+    g.plane.start(0, 0, h, 50, 0, 0, 0.36);
+    const t = PA.target(kind, X, Z, () => 0.5);
+    t.cool = 0;
+    g.mission.targets = [t];
+    g.update(1 / 30);
+    return { g, t };
+  };
+  const over = setup('tank_mbt', 0, 20, 200);
+  check('fire: a tank does not shoot at a plane high above it', over.g.shells.length === 0, 'shells ' + over.g.shells.length);
+  const low = setup('tank_mbt', 0, 250, 30);
+  const s0 = low.g.shells[0];
+  check('fire: a tank shoots a low plane, from the tank, with a weak gun', !!s0 && Math.hypot(s0.X - low.t.X, s0.Z - low.t.Z) < 15 && s0.dmg < 10, s0 ? 'dmg ' + s0.dmg : 'no shot');
+  const flak = setup('flak', 0, 100, 250);
+  check('fire: flak shoots up at a high plane', flak.g.shells.length === 1 && flak.g.shells[0].r > 5);
+  const sam = setup('sam', 0, 400, 200);
+  const m = sam.g.missiles.find(x => x.enemy);
+  check('fire: a SAM launches a homing missile that knows its source', !!m && m.src === sam.t && sam.g.shells.length === 0);
+  // A missile hit hurts far more than a machine-gun hit.
+  const hit = (dmg) => { const g = new PA.Game(st); g.onSound = () => {}; g.mission.targets = []; g.shells.push({ X: g.plane.X, Z: g.plane.Z, h: g.plane.h, vX: 0, vY: 0, vZ: 0, life: 2, dmg }); g.update(1 / 30); return 100 - g.hull; };
+  check('fire: a machine-gun hit is small', hit(4) <= 5, 'lost ' + hit(4));
+}
+
 console.log(failures === 0 ? '\nAll flight checks passed.' : '\n' + failures + ' check(s) failed.');
 process.exit(failures ? 1 : 0);
