@@ -1234,13 +1234,13 @@ var PA;
     PA.DRONES = {
         // A small toy quad: slow, tilts gently, holds its height.
         hobby: { label: 'Hobby quad', assist: 'althold', maxTilt: 0.42, tiltRate: 6, twr: 2.2, maxSpeed: 8, accel: 4,
-            climb: 2.5, sink: 2, yawRate: 2.4, dragLin: 0.5, dragQuad: 0.02, raceSpeed: 6, size: '15 cm, about 8 m/s' },
+            climb: 2.5, sink: 2, yawRate: 2.4, dragLin: 0.4, dragQuad: 0.02, raceSpeed: 6, size: '15 cm, about 8 m/s' },
         // A folding camera drone (DJI-style): GPS holds it still; let go and it stops.
         camera: { label: 'Camera drone (DJI-style)', assist: 'gps', maxTilt: 0.5, tiltRate: 5, twr: 2, maxSpeed: 15, accel: 6,
             climb: 5, sink: 3, yawRate: 1.75, dragLin: 0.2, dragQuad: 0.01, raceSpeed: 11, size: '35 cm, about 15 m/s' },
         // A 5-inch racing quad in angle mode: the throttle is yours, it is fast and twitchy.
-        racer: { label: 'Racing quad (FPV)', assist: 'none', maxTilt: 1.05, tiltRate: 12, twr: 4, maxSpeed: 38, accel: 30,
-            climb: 0, sink: 0, yawRate: 4, dragLin: 0.1, dragQuad: 0.022, raceSpeed: 20, size: '22 cm, about 38 m/s' },
+        racer: { label: 'Racing quad (FPV)', assist: 'none', maxTilt: 1.2, tiltRate: 12, twr: 4, maxSpeed: 38, accel: 30,
+            climb: 0, sink: 0, yawRate: 4, dragLin: 0.05, dragQuad: 0.016, raceSpeed: 20, size: '22 cm, about 38 m/s' },
         // A military quadcopter drone: heavy, steady, GPS-held, slow to speed up and to turn.
         military: { label: 'Military drone', assist: 'gps', maxTilt: 0.4, tiltRate: 2.5, twr: 1.8, maxSpeed: 26, accel: 3.5,
             climb: 6, sink: 4, yawRate: 0.9, dragLin: 0.15, dragQuad: 0.008, raceSpeed: 16, size: '1.2 m, about 26 m/s' },
@@ -1342,8 +1342,11 @@ var PA;
             // Air drag on every direction of motion.
             const v = Math.hypot(fwd, right, this.vy);
             const drag = s.dragLin + s.dragQuad * v;
-            fwd -= fwd * drag * dt;
-            right -= right * drag * dt;
+            // (A GPS drone's controller already allows for the drag when it holds a speed.)
+            if (s.assist !== 'gps') {
+                fwd -= fwd * drag * dt;
+                right -= right * drag * dt;
+            }
             if (s.assist === 'none')
                 this.vy -= this.vy * drag * dt;
             this.vX = fwd * sinY + right * cosY;
@@ -1783,7 +1786,7 @@ var PA;
             SPD: Math.round(p.speed * 1.94),
             AOA: Math.round((p.alpha * 180) / Math.PI),
             VIEW: settings.view,
-            PLANE: settings.mode === 'glider' ? 'paper glider' : 'A-10 jet',
+            PLANE: settings.mode === 'drone' ? (settings.droneKind || 'camera') + ' drone' : settings.mode === 'glider' ? 'paper glider' : 'A-10 jet',
             MISS: g.missileStock,
             GUN: g.aim.mode === 'ground' ? Number(((Math.abs(g.aim.pitch) * 180) / Math.PI).toFixed(1)) : 0,
             LEFT: g.mission.targets.filter(t => t.alive).length,
@@ -1794,7 +1797,7 @@ var PA;
     }
     PA.snapshot = snapshot;
     function subProject(settings) {
-        return (settings.mode === 'glider' ? 'paper glider' : 'A-10 jet') + ' / ' + settings.view;
+        return (settings.mode === 'drone' ? (settings.droneKind || 'camera') + ' drone' : settings.mode === 'glider' ? 'paper glider' : 'A-10 jet') + ' / ' + settings.view;
     }
     PA.subProject = subProject;
     function statusCount(list) {
@@ -2180,7 +2183,7 @@ var PA;
         // Rivals fly the gates in order: they aim between the next gate and the one after,
         // speed up on the straights and slow for the bends.
         updateRivals(dt) {
-            var _a, _b, _c;
+            var _a, _b, _c, _d;
             const hs = this.mission.hoops;
             const race = this.race;
             for (const r of this.rivals) {
@@ -2190,7 +2193,7 @@ var PA;
                 const a = hs[r.next], b = hs[(r.next + 1) % hs.length];
                 const t = r.t;
                 const da = Math.hypot(a.X - t.X, a.h - ((_a = t.h) !== null && _a !== void 0 ? _a : 0), a.Z - t.Z);
-                const k = Math.max(0, Math.min(0.5, 1 - da / 25)) * 0.6;
+                const k = Math.max(0, Math.min(1, 1 - da / 12)) * 0.25;
                 const ax = a.X + (b.X - a.X) * k, ah = a.h + (b.h - a.h) * k, az = a.Z + (b.Z - a.Z) * k;
                 let dx = ax - t.X, dy = ah - ((_b = t.h) !== null && _b !== void 0 ? _b : 0), dz = az - t.Z;
                 const dl = Math.hypot(dx, dy, dz) || 1;
@@ -2208,7 +2211,10 @@ var PA;
                 t.Z += r.dir[2] * r.v * dt;
                 t.h = Math.max(PA.groundAt(t.X, t.Z) + 0.15, ((_c = t.h) !== null && _c !== void 0 ? _c : 0) + r.dir[1] * r.v * dt);
                 t.vH = Math.atan2(r.dir[0], r.dir[2]);
-                if (!r.done && da < a.r) {
+                // Through the gate: across its plane, near the middle.
+                const gy = (_d = a.yaw) !== null && _d !== void 0 ? _d : 0;
+                const along = (t.X - a.X) * Math.sin(gy) + (t.Z - a.Z) * Math.cos(gy);
+                if (!r.done && (da < a.r || (along > 0 && da < a.r * 2.2))) {
                     r.next++;
                     if (r.next >= hs.length) {
                         r.next = 0;
@@ -3185,9 +3191,20 @@ var PA;
         top: { back: 4, up: 110, tilt: 1.35 },
         cockpit: { back: -1.5, up: 1.4, tilt: 0.02 },
     };
+    // A drone is small, so its camera sits close: chase just behind and above, top-down lower,
+    // and the cockpit view becomes the FPV camera on the frame, tilted up as racing cameras are.
+    const DRONE_VIEWS = {
+        chase: { back: 5.5, up: 1.8, tilt: 0.16 },
+        top: { back: 1.5, up: 32, tilt: 1.35 },
+        cockpit: { back: -0.15, up: 0.08, tilt: -0.3 },
+    };
     function makeCam(g) {
         const p = g.plane;
-        const v = VIEWS[g.settings.view];
+        const drone = g.settings.mode === 'drone';
+        const fpv = drone && g.settings.view === 'cockpit';
+        const v0 = (drone ? DRONE_VIEWS : VIEWS)[g.settings.view];
+        // The FPV camera is bolted to the frame: it tips down as the drone leans forward.
+        const v = fpv ? { back: v0.back, up: v0.up, tilt: v0.tilt - p.pitch } : v0;
         const sinY = Math.sin(p.yaw), cosY = Math.cos(p.yaw);
         const hx = sinY, hz = cosY; // horizontal forward
         const rhx = cosY, rhz = -sinY; // horizontal right
@@ -3196,7 +3213,7 @@ var PA;
         const pz = p.Z - hz * v.back;
         // Look down by the view's tilt, then roll with part of the bank (a right bank rolls the
         // camera right, so the land tips the other way). The top view stays level.
-        const roll = g.settings.view === 'top' ? 0 : -ROLL_FOLLOW * p.bank;
+        const roll = g.settings.view === 'top' ? 0 : fpv ? -p.bank : -(drone ? 0.3 : ROLL_FOLLOW) * p.bank;
         const ct = Math.cos(v.tilt), st = Math.sin(v.tilt);
         const fx = hx * ct, fy = -st, fz = hz * ct;
         const u0x = hx * st, u0y = ct, u0z = hz * st;
@@ -3748,6 +3765,9 @@ var PA;
         return t.kind;
     }
     function yawOf(t) {
+        var _a;
+        if (t.kind.startsWith('rival'))
+            return (_a = t.vH) !== null && _a !== void 0 ? _a : 0;
         if (t.faction === 'enemy' && t.vH !== undefined)
             return t.vH;
         if (t.faction === 'ally' && t.orbit)
@@ -4141,8 +4161,15 @@ var PA;
     }
     // Glider rings: glowing hoops standing across the heading.
     function rings(ctx, g, c) {
-        const rhx = Math.cos(g.plane.yaw), rhz = -Math.sin(g.plane.yaw);
-        for (const ring of g.mission.hoops) {
+        var _a;
+        const next = g.race && !g.race.finished ? g.race.next : -1;
+        const hoops = g.mission.hoops;
+        for (let idx = 0; idx < hoops.length; idx++) {
+            const ring = hoops[idx];
+            // Drone gates face along the course; glider rings always face the plane.
+            const ry = (_a = ring.yaw) !== null && _a !== void 0 ? _a : g.plane.yaw;
+            const rhx = Math.cos(ry), rhz = -Math.sin(ry);
+            const lit = idx === next, after = next >= 0 && idx === (next + 1) % hoops.length;
             const pts = [];
             let depth = 0;
             for (let a = 0; a < 32; a++) {
@@ -4165,13 +4192,13 @@ var PA;
             };
             ctx.globalAlpha = fogAlpha(depth);
             ctx.globalCompositeOperation = 'lighter';
-            ctx.lineWidth = w * 3;
-            ctx.strokeStyle = ring.passed ? 'rgba(120,230,150,0.25)' : 'rgba(255,170,120,0.3)';
+            ctx.lineWidth = w * (lit ? 5 : 3);
+            ctx.strokeStyle = lit ? 'rgba(255,240,90,0.55)' : ring.passed ? 'rgba(120,230,150,0.25)' : 'rgba(255,170,120,0.3)';
             path();
             ctx.stroke();
             ctx.globalCompositeOperation = 'source-over';
-            ctx.lineWidth = w;
-            ctx.strokeStyle = ring.passed ? '#7fe0a0' : '#ffb08a';
+            ctx.lineWidth = w * (lit ? 1.6 : 1);
+            ctx.strokeStyle = lit ? '#ffe94a' : after ? '#ffc58a' : ring.passed ? '#7fe0a0' : next >= 0 ? 'rgba(255,176,138,0.55)' : '#ffb08a';
             path();
             ctx.stroke();
             ctx.lineWidth = Math.max(1, w * 0.35);
@@ -4179,6 +4206,48 @@ var PA;
             path();
             ctx.stroke();
             ctx.globalAlpha = 1;
+        }
+    }
+    // ---- The drone (drone flight) -------------------------------------------------------
+    // The drone sits a little below the middle of the screen, tilted as it leans, with its shadow
+    // on the ground and the rotors shimmering.
+    function droneSelf(ctx, g, c) {
+        const d = g.drone;
+        const name = 'drone_' + d.kind;
+        const m = PA.model(name);
+        drawShadow(ctx, c, name, d.X, d.h, d.Z, d.yaw);
+        const top = g.settings.view === 'top';
+        const pose = {
+            sx: PA.W / 2,
+            sy: PA.H * (top ? 0.5 : 0.62),
+            px: (PA.W * 0.16) / m.w,
+            yaw: 0,
+            elev: top ? 1.5 : Math.max(0.2, Math.min(1.4, 0.55 - d.pitch * 0.9)),
+            roll: top ? d.roll : d.roll * 0.7,
+        };
+        if (g.phase === 'crashed' && Math.floor(g.blink * 8) % 2 === 0)
+            return;
+        PA.drawModel(ctx, m, pose);
+    }
+    // The FPV view: a thin frame of the camera's on-screen display, a centre mark and the horizon.
+    function fpvOverlay(ctx) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(PA.W / 2 - 8, PA.H / 2);
+        ctx.lineTo(PA.W / 2 - 3, PA.H / 2);
+        ctx.moveTo(PA.W / 2 + 3, PA.H / 2);
+        ctx.lineTo(PA.W / 2 + 8, PA.H / 2);
+        ctx.moveTo(PA.W / 2, PA.H / 2 - 5);
+        ctx.lineTo(PA.W / 2, PA.H / 2 - 2);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        for (const [x, y, sx, sy] of [[12, 12, 1, 1], [PA.W - 12, 12, -1, 1], [12, PA.H - 12, 1, -1], [PA.W - 12, PA.H - 12, -1, -1]]) {
+            ctx.beginPath();
+            ctx.moveTo(x, y + sy * 14);
+            ctx.lineTo(x, y);
+            ctx.lineTo(x + sx * 14, y);
+            ctx.stroke();
         }
     }
     const streams = [];
@@ -4529,19 +4598,29 @@ var PA;
         objects(ctx, g, c);
         birds(ctx, g, c);
         const t2 = performance.now();
-        if (g.settings.view !== 'cockpit' && g.mission.mode === 'glider')
+        const droneMode = g.settings.mode === 'drone';
+        if ((g.settings.view !== 'cockpit' || droneMode) && (g.mission.mode === 'glider' || droneMode))
             rings(ctx, g, c);
         tracers(ctx, c, g.shots, 'rgba(255,236,150,0.95)', 0.35);
         tracers(ctx, c, g.shells, 'rgba(255,150,90,0.9)', 0.5);
         missiles(ctx, g, c);
         puffs(ctx, g, c);
         lockRing(ctx, g, c);
-        if (g.settings.view !== 'cockpit')
+        if (droneMode) {
+            if (g.settings.view !== 'cockpit')
+                droneSelf(ctx, g, c);
+        }
+        else if (g.settings.view !== 'cockpit') {
             plane(ctx, g, c);
+        }
         lensFlare(ctx, c);
         warnRing(ctx, g);
-        if (g.settings.view === 'cockpit')
-            cockpit(ctx, g);
+        if (g.settings.view === 'cockpit') {
+            if (droneMode)
+                fpvOverlay(ctx);
+            else
+                cockpit(ctx, g);
+        }
         if (g.settings.forces)
             forces(ctx, g);
         ctx.drawImage(textures().vignette, 0, 0);
@@ -4701,7 +4780,7 @@ var PA;
         mode: 'glider', control: 'drag', view: 'chase', difficulty: 'felix', sound: 1,
         volMusic: 20, volGun: 25, volTurn: 25, volWarn: 60,
         forces: 0, flightHelp: 1, safeFlight: 1, invincible: 0, autoReload: 1,
-        enemyWave: 2, allies: 1, showErrors: 0,
+        enemyWave: 2, allies: 1, showErrors: 0, droneKind: 'camera', stickMode: 'mode2',
     };
     const VIEW_ORDER = ['chase', 'top', 'cockpit'];
     const TUTORIAL_KEY = 'pa_warthog.tutorialSeen';
@@ -4752,6 +4831,7 @@ var PA;
     function applyBodyClasses() {
         document.body.classList.toggle('glider', settings.mode === 'glider');
         document.body.classList.toggle('jet', settings.mode === 'jet');
+        document.body.classList.toggle('drone', settings.mode === 'drone');
         document.body.classList.toggle('joy', settings.control === 'stick');
         document.body.classList.toggle('manual', settings.flightHelp !== 1);
     }
@@ -4774,6 +4854,172 @@ var PA;
         $('showErrors').checked = settings.showErrors === 1;
         applyBodyClasses();
         renderErrors();
+        renderDroneHints();
+    }
+    // ---- Drone flight: settings text, two sticks, keys, best times ----------------
+    const STICK_TEXT = {
+        mode2: 'Mode 2 (most common): left stick = throttle (up/down) and yaw (turn); right stick = pitch (forward/back) and roll (sideways).',
+        mode1: 'Mode 1 (older, common in the UK and Japan): left stick = pitch and yaw; right stick = throttle and roll.',
+        mode3: 'Mode 3 (Mode 2 the other way round, for left hands): left stick = pitch and roll; right stick = throttle and yaw.',
+    };
+    const ASSIST_TEXT = {
+        gps: 'GPS holds it still: push to fly, let go and it brakes to a hover. Throttle stick up climbs, down sinks.',
+        althold: 'It holds its height; the stick tilts it. Let go and it levels out but drifts on.',
+        none: 'Angle mode, no help: the throttle stays where you leave it (about a quarter holds a hover) and you fly the height yourself.',
+    };
+    function renderDroneHints() {
+        const kind = settings.droneKind || 'camera';
+        const spec = PA.DRONES[kind];
+        $('droneHint').textContent = spec.label + ', ' + spec.size + '. ' + ASSIST_TEXT[spec.assist] + bestText(kind);
+        $('stickHint').textContent = STICK_TEXT[settings.stickMode || 'mode2'] + ' Keys: W A S D = left stick, arrows = right stick.';
+        const map = sticksLabels(settings.stickMode || 'mode2');
+        $('padLabelL').textContent = map[0];
+        $('padLabelR').textContent = map[1];
+    }
+    function sticksLabels(mode) {
+        if (mode === 'mode1')
+            return ['pitch · yaw', 'throttle · roll'];
+        if (mode === 'mode3')
+            return ['pitch · roll', 'throttle · yaw'];
+        return ['throttle · yaw', 'pitch · roll'];
+    }
+    function bestKey(kind) {
+        return 'pa_warthog.best.' + kind;
+    }
+    function loadBest(kind) {
+        try {
+            return Number(localStorage.getItem(bestKey(kind))) || 0;
+        }
+        catch (e) {
+            return 0;
+        }
+    }
+    function saveBest(kind, t) {
+        try {
+            localStorage.setItem(bestKey(kind), String(t));
+        }
+        catch (e) { /* this visit only */ }
+    }
+    function bestText(kind) {
+        const b = loadBest(kind);
+        return b ? ' Best race: ' + clock(b) + '.' : '';
+    }
+    function clock(t) {
+        const m = Math.floor(t / 60), s = t - m * 60;
+        return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1);
+    }
+    function ordinal(n) {
+        return n + (n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th');
+    }
+    // The pads: x and y from -1 to 1. Letting go springs back to the middle, except the
+    // racer's throttle, which stays where it was left (as a real throttle stick does).
+    const pads = { lx: 0, ly: 0, rx: 0, ry: 0 };
+    let racerThrottle = -1; // -1 bottom … +1 top, on the throttle side
+    const downKeys = new Set();
+    function racerMode() {
+        return settings.mode === 'drone' && PA.DRONES[settings.droneKind || 'camera'].assist === 'none';
+    }
+    function bindPads() {
+        for (const side of ['L', 'R']) {
+            const pad = $('pad' + side);
+            const knob = $('knob' + side);
+            let id = -1;
+            const isThrottle = () => racerMode() && PA.throttleSide(settings.stickMode || 'mode2') === (side === 'L' ? 'left' : 'right');
+            const show = () => {
+                const x = side === 'L' ? pads.lx : pads.rx, y = side === 'L' ? pads.ly : pads.ry;
+                const r = pad.getBoundingClientRect().width / 2;
+                knob.style.transform = `translate(${x * r * 0.62}px, ${-y * r * 0.62}px)`;
+            };
+            const move = (e) => {
+                const r = pad.getBoundingClientRect();
+                const x = Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / (r.width / 2)));
+                const y = Math.max(-1, Math.min(1, -(e.clientY - (r.top + r.height / 2)) / (r.height / 2)));
+                if (side === 'L') {
+                    pads.lx = dz(x);
+                    pads.ly = isThrottle() ? y : dz(y);
+                }
+                else {
+                    pads.rx = dz(x);
+                    pads.ry = isThrottle() ? y : dz(y);
+                }
+                if (isThrottle())
+                    racerThrottle = y;
+                show();
+            };
+            pad.addEventListener('pointerdown', e => { e.preventDefault(); sound.unlock(); id = e.pointerId; capture(pad, e.pointerId); move(e); });
+            pad.addEventListener('pointermove', e => { if (e.pointerId === id)
+                move(e); });
+            const end = (e) => {
+                if (e.pointerId !== id)
+                    return;
+                id = -1;
+                if (side === 'L') {
+                    pads.lx = 0;
+                    pads.ly = isThrottle() ? racerThrottle : 0;
+                }
+                else {
+                    pads.rx = 0;
+                    pads.ry = isThrottle() ? racerThrottle : 0;
+                }
+                show();
+            };
+            pad.addEventListener('pointerup', end);
+            pad.addEventListener('pointercancel', end);
+        }
+        window.addEventListener('keydown', e => downKeys.add(e.code));
+        window.addEventListener('keyup', e => downKeys.delete(e.code));
+        window.addEventListener('blur', () => downKeys.clear());
+    }
+    // The sticks this frame: the pads, with the keyboard added on top.
+    function resolvePads(dt) {
+        const k = (c) => (downKeys.has(c) ? 1 : 0);
+        const kl = { x: k('KeyD') - k('KeyA'), y: k('KeyW') - k('KeyS') };
+        const kr = { x: k('ArrowRight') - k('ArrowLeft'), y: k('ArrowUp') - k('ArrowDown') };
+        const out = { lx: pads.lx || kl.x, ly: pads.ly || kl.y, rx: pads.rx || kr.x, ry: pads.ry || kr.y };
+        if (racerMode()) {
+            // The racer's throttle keys move the throttle and leave it there.
+            const left = PA.throttleSide(settings.stickMode || 'mode2') === 'left';
+            const ky = left ? kl.y : kr.y;
+            if (ky) {
+                racerThrottle = Math.max(-1, Math.min(1, racerThrottle + ky * dt * 1.2));
+                if (left)
+                    pads.ly = racerThrottle;
+                else
+                    pads.ry = racerThrottle;
+            }
+            if (left)
+                out.ly = pads.ly = racerThrottle;
+            else
+                out.ry = pads.ry = racerThrottle;
+        }
+        return out;
+    }
+    let bestSaved = false;
+    function raceHud() {
+        const g = game;
+        const r = g.race;
+        const bar = $('raceBar'), cd = $('countdown');
+        if (!r) {
+            bar.hidden = true;
+            cd.hidden = true;
+            return;
+        }
+        bar.hidden = false;
+        const gates = g.mission.hoops.length;
+        bar.textContent = r.finished ? 'Finished ' + ordinal(r.place) + ' · ' + clock(r.time)
+            : 'Lap ' + Math.min(r.lap, r.laps) + '/' + r.laps + ' · gate ' + (r.next + 1) + '/' + gates + ' · ' + clock(r.time) + ' · ' + ordinal(r.place) + ' of ' + (g.rivals.length + 1);
+        cd.hidden = !(r.countdown > 0 || r.time < 0.8);
+        cd.textContent = r.countdown > 0 ? String(Math.ceil(r.countdown)) : 'GO!';
+        if (r.finished && !bestSaved) {
+            bestSaved = true;
+            const kind = g.drone.kind;
+            const best = loadBest(kind);
+            if (!best || r.time < best)
+                saveBest(kind, r.time);
+            renderDroneHints();
+        }
+        if (!r.finished)
+            bestSaved = false;
     }
     function onSeg(key, value) {
         if (key === 'mode' || key === 'control' || key === 'view' || key === 'difficulty' || key === 'droneKind' || key === 'stickMode') {
@@ -4797,6 +5043,8 @@ var PA;
     }
     function restart() {
         game.settings = settings;
+        racerThrottle = -1;
+        pads.lx = pads.ly = pads.rx = pads.ry = 0;
         game.newFlight(Math.floor(Math.random() * 100000));
         $('overlay').hidden = true;
     }
@@ -4872,7 +5120,7 @@ var PA;
         renderSettings();
     }
     // ---- Drag relative to the centre of the screen ------------------------
-    const IGNORE = '.actions, .stick, .throttle, #gear, .gearHot, .drawer, .errorsPanel, .tutorial, button, input, label';
+    const IGNORE = '.actions, .stick, .throttle, .pad, #gear, .gearHot, .drawer, .errorsPanel, .tutorial, button, input, label';
     function dz(v) {
         if (Math.abs(v) < DEAD)
             return 0;
@@ -4886,7 +5134,7 @@ var PA;
     function bindDrag() {
         const play = $('play');
         play.addEventListener('pointerdown', e => {
-            if (settings.control !== 'drag')
+            if (settings.control !== 'drag' || settings.mode === 'drone')
                 return;
             if (e.target.closest(IGNORE))
                 return;
@@ -5072,7 +5320,7 @@ var PA;
         $('gun').textContent = a.mode === 'air' ? 'air: straight'
             : a.mode === 'ground' ? (Math.abs(a.pitch) * 180 / Math.PI).toFixed(1) + '° down'
                 : 'straight';
-        $('speed').textContent = Math.round(p.speed * 1.94) + ' kt';
+        $('speed').textContent = g.settings.mode === 'drone' ? Math.round(p.speed * 3.6) + ' km/h' : Math.round(p.speed * 1.94) + ' kt';
         $('alt').textContent = Math.round(p.h - PA.groundAt(p.X, p.Z)) + ' m';
         $('aoa').textContent = (p.alpha * 180 / Math.PI).toFixed(0) + '°';
         $('stall').hidden = !p.stalled || g.phase !== 'flying';
@@ -5084,6 +5332,17 @@ var PA;
             return 'Hit! The plane blinks and carries on with a full repair.';
         if (g.phase !== 'flying')
             return '';
+        if (g.settings.mode === 'drone') {
+            const r = g.race;
+            if (r && r.countdown > 0)
+                return 'Get ready: ' + sticksLabels(settings.stickMode || 'mode2').join(' | ') + '.';
+            if (r && r.crashes && r.time < 2)
+                return 'Crashed! Back at the last gate, 3 seconds added.';
+            const sp = g.drone.spec;
+            if (sp.assist === 'none' && g.drone.h - PA.groundAt(g.drone.X, g.drone.Z) < 0.3)
+                return 'Throttle up (about a quarter holds a hover), then tilt to fly.';
+            return 'Fly the lit gate. ' + (sp.assist === 'gps' ? 'Let go and the drone stops.' : sp.assist === 'althold' ? 'It holds its height.' : 'The throttle is yours.');
+        }
         if (g.tagged)
             return 'Missile on you! Hard turn to break it, or drop CHAFF.';
         if (g.floorActive)
@@ -5106,6 +5365,13 @@ var PA;
             return;
         }
         box.hidden = false;
+        if (g.race) {
+            const r = g.race;
+            const best = loadBest(g.drone.kind);
+            $('ovTitle').textContent = 'Race finished: ' + ordinal(r.place) + '!';
+            $('ovText').textContent = 'Time ' + clock(r.time) + (r.crashes ? ' (with ' + r.crashes + ' crash' + (r.crashes > 1 ? 'es' : '') + ')' : '') + (best ? '. Best ' + clock(best) : '') + '. ' + r.results.map((x, i) => (i + 1) + '. ' + x.name + ' ' + clock(x.time)).join('  ');
+            return;
+        }
         $('ovTitle').textContent = 'Landed!';
         $('ovText').textContent = 'Rings flown: ' + g.hoopsPassed + ' of ' + g.mission.hoops.length + '.';
     }
@@ -5309,6 +5575,8 @@ var PA;
         last = now;
         try {
             game.axes = resolveAxes();
+            if (settings.mode === 'drone')
+                game.pads = resolvePads(dt);
             game.update(dt);
             const ctx = $('view').getContext('2d');
             if (ctx)
@@ -5321,6 +5589,7 @@ var PA;
             if (hudTimer > 0.1) {
                 hudTimer = 0;
                 hud();
+                raceHud();
                 overlay();
                 $('msg').textContent = message();
             }
@@ -5365,6 +5634,7 @@ var PA;
         bindDrag();
         bindStick();
         bindThrottle();
+        bindPads();
         bindActions();
         bindGear();
         bindNotes();

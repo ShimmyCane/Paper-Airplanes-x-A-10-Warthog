@@ -65,6 +65,11 @@
       <span class="throttleLabel" id="throttleLabel">36%</span>
     </div>
 
+    <div class="pad padL" id="padL" aria-label="Left stick"><div class="knob" id="knobL"></div><span class="padLabel" id="padLabelL"></span></div>
+    <div class="pad padR" id="padR" aria-label="Right stick"><div class="knob" id="knobR"></div><span class="padLabel" id="padLabelR"></span></div>
+    <p class="raceBar" id="raceBar" hidden></p>
+    <p class="countdown" id="countdown" hidden></p>
+
     <div class="stick" id="stick" aria-label="Joystick">
       <div class="knob" id="knob"></div>
     </div>
@@ -98,8 +103,28 @@
               <div class="seg" data-key="mode">
                 <button type="button" data-v="jet">A-10 jet</button>
                 <button type="button" data-v="glider">Paper glider</button>
+                <button type="button" data-v="drone">Drone</button>
               </div>
-              <p class="hint">Changing this starts a new flight.</p>
+              <p class="hint">Changing this starts a new flight. Drone: from paper planes and the 1950s jet to the drones of today. A timed race round a loop of gates, against three rivals.</p>
+            </div>
+            <div class="setting droneOnly">
+              <label>Drone</label>
+              <div class="seg" data-key="droneKind">
+                <button type="button" data-v="hobby">Hobby</button>
+                <button type="button" data-v="camera">Camera (DJI-style)</button>
+                <button type="button" data-v="racer">Racer (FPV)</button>
+                <button type="button" data-v="military">Military</button>
+              </div>
+              <p class="hint" id="droneHint"></p>
+            </div>
+            <div class="setting droneOnly">
+              <label>Sticks (transmitter mode)</label>
+              <div class="seg" data-key="stickMode">
+                <button type="button" data-v="mode2">Mode 2</button>
+                <button type="button" data-v="mode1">Mode 1</button>
+                <button type="button" data-v="mode3">Mode 3</button>
+              </div>
+              <p class="hint" id="stickHint"></p>
             </div>
             <div class="setting">
               <label>Camera view</label>

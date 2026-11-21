@@ -35,13 +35,13 @@ namespace PA {
   export const DRONES: { [k in DroneKind]: DroneSpec } = {
     // A small toy quad: slow, tilts gently, holds its height.
     hobby: { label: 'Hobby quad', assist: 'althold', maxTilt: 0.42, tiltRate: 6, twr: 2.2, maxSpeed: 8, accel: 4,
-      climb: 2.5, sink: 2, yawRate: 2.4, dragLin: 0.5, dragQuad: 0.02, raceSpeed: 6, size: '15 cm, about 8 m/s' },
+      climb: 2.5, sink: 2, yawRate: 2.4, dragLin: 0.4, dragQuad: 0.02, raceSpeed: 6, size: '15 cm, about 8 m/s' },
     // A folding camera drone (DJI-style): GPS holds it still; let go and it stops.
     camera: { label: 'Camera drone (DJI-style)', assist: 'gps', maxTilt: 0.5, tiltRate: 5, twr: 2, maxSpeed: 15, accel: 6,
       climb: 5, sink: 3, yawRate: 1.75, dragLin: 0.2, dragQuad: 0.01, raceSpeed: 11, size: '35 cm, about 15 m/s' },
     // A 5-inch racing quad in angle mode: the throttle is yours, it is fast and twitchy.
-    racer: { label: 'Racing quad (FPV)', assist: 'none', maxTilt: 1.05, tiltRate: 12, twr: 4, maxSpeed: 38, accel: 30,
-      climb: 0, sink: 0, yawRate: 4, dragLin: 0.1, dragQuad: 0.022, raceSpeed: 20, size: '22 cm, about 38 m/s' },
+    racer: { label: 'Racing quad (FPV)', assist: 'none', maxTilt: 1.2, tiltRate: 12, twr: 4, maxSpeed: 38, accel: 30,
+      climb: 0, sink: 0, yawRate: 4, dragLin: 0.05, dragQuad: 0.016, raceSpeed: 20, size: '22 cm, about 38 m/s' },
     // A military quadcopter drone: heavy, steady, GPS-held, slow to speed up and to turn.
     military: { label: 'Military drone', assist: 'gps', maxTilt: 0.4, tiltRate: 2.5, twr: 1.8, maxSpeed: 26, accel: 3.5,
       climb: 6, sink: 4, yawRate: 0.9, dragLin: 0.15, dragQuad: 0.008, raceSpeed: 16, size: '1.2 m, about 26 m/s' },
@@ -150,8 +150,11 @@ namespace PA {
       // Air drag on every direction of motion.
       const v = Math.hypot(fwd, right, this.vy);
       const drag = s.dragLin + s.dragQuad * v;
-      fwd -= fwd * drag * dt;
-      right -= right * drag * dt;
+      // (A GPS drone's controller already allows for the drag when it holds a speed.)
+      if (s.assist !== 'gps') {
+        fwd -= fwd * drag * dt;
+        right -= right * drag * dt;
+      }
       if (s.assist === 'none') this.vy -= this.vy * drag * dt;
 
       this.vX = fwd * sinY + right * cosY;

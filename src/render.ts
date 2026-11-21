@@ -45,6 +45,14 @@ namespace PA {
     cockpit: { back: -1.5, up: 1.4, tilt: 0.02 },
   };
 
+  // A drone is small, so its camera sits close: chase just behind and above, top-down lower,
+  // and the cockpit view becomes the FPV camera on the frame, tilted up as racing cameras are.
+  const DRONE_VIEWS = {
+    chase: { back: 5.5, up: 1.8, tilt: 0.16 },
+    top: { back: 1.5, up: 32, tilt: 1.35 },
+    cockpit: { back: -0.15, up: 0.08, tilt: -0.3 },
+  };
+
   interface Cam {
     px: number; py: number; pz: number;           // camera position
     rx: number; ry: number; rz: number;           // right
@@ -56,7 +64,11 @@ namespace PA {
 
   function makeCam(g: Game): Cam {
     const p = g.plane;
-    const v = VIEWS[g.settings.view];
+    const drone = g.settings.mode === 'drone';
+    const fpv = drone && g.settings.view === 'cockpit';
+    const v0 = (drone ? DRONE_VIEWS : VIEWS)[g.settings.view];
+    // The FPV camera is bolted to the frame: it tips down as the drone leans forward.
+    const v = fpv ? { back: v0.back, up: v0.up, tilt: v0.tilt - p.pitch } : v0;
     const sinY = Math.sin(p.yaw), cosY = Math.cos(p.yaw);
     const hx = sinY, hz = cosY;             // horizontal forward
     const rhx = cosY, rhz = -sinY;          // horizontal right
@@ -65,7 +77,7 @@ namespace PA {
     const pz = p.Z - hz * v.back;
     // Look down by the view's tilt, then roll with part of the bank (a right bank rolls the
     // camera right, so the land tips the other way). The top view stays level.
-    const roll = g.settings.view === 'top' ? 0 : -ROLL_FOLLOW * p.bank;
+    const roll = g.settings.view === 'top' ? 0 : fpv ? -p.bank : -(drone ? 0.3 : ROLL_FOLLOW) * p.bank;
     const ct = Math.cos(v.tilt), st = Math.sin(v.tilt);
     const fx = hx * ct, fy = -st, fz = hz * ct;
     const u0x = hx * st, u0y = ct, u0z = hz * st;
@@ -474,6 +486,7 @@ namespace PA {
   }
 
   function yawOf(t: Target): number {
+    if (t.kind.startsWith('rival')) return t.vH ?? 0;
     if (t.faction === 'enemy' && t.vH !== undefined) return t.vH;
     if (t.faction === 'ally' && t.orbit) return Math.atan2(-Math.sin(t.orbit.ang), Math.cos(t.orbit.ang));
     if (t.vZ !== undefined && t.vZ !== 0) return t.vZ > 0 ? 0 : Math.PI;
@@ -815,8 +828,14 @@ namespace PA {
 
   // Glider rings: glowing hoops standing across the heading.
   function rings(ctx: CanvasRenderingContext2D, g: Game, c: Cam): void {
-    const rhx = Math.cos(g.plane.yaw), rhz = -Math.sin(g.plane.yaw);
-    for (const ring of g.mission.hoops) {
+    const next = g.race && !g.race.finished ? g.race.next : -1;
+    const hoops = g.mission.hoops;
+    for (let idx = 0; idx < hoops.length; idx++) {
+      const ring = hoops[idx];
+      // Drone gates face along the course; glider rings always face the plane.
+      const ry = ring.yaw ?? g.plane.yaw;
+      const rhx = Math.cos(ry), rhz = -Math.sin(ry);
+      const lit = idx === next, after = next >= 0 && idx === (next + 1) % hoops.length;
       const pts: [number, number][] = [];
       let depth = 0;
       for (let a = 0; a < 32; a++) {
@@ -836,17 +855,56 @@ namespace PA {
       };
       ctx.globalAlpha = fogAlpha(depth);
       ctx.globalCompositeOperation = 'lighter';
-      ctx.lineWidth = w * 3;
-      ctx.strokeStyle = ring.passed ? 'rgba(120,230,150,0.25)' : 'rgba(255,170,120,0.3)';
+      ctx.lineWidth = w * (lit ? 5 : 3);
+      ctx.strokeStyle = lit ? 'rgba(255,240,90,0.55)' : ring.passed ? 'rgba(120,230,150,0.25)' : 'rgba(255,170,120,0.3)';
       path(); ctx.stroke();
       ctx.globalCompositeOperation = 'source-over';
-      ctx.lineWidth = w;
-      ctx.strokeStyle = ring.passed ? '#7fe0a0' : '#ffb08a';
+      ctx.lineWidth = w * (lit ? 1.6 : 1);
+      ctx.strokeStyle = lit ? '#ffe94a' : after ? '#ffc58a' : ring.passed ? '#7fe0a0' : next >= 0 ? 'rgba(255,176,138,0.55)' : '#ffb08a';
       path(); ctx.stroke();
       ctx.lineWidth = Math.max(1, w * 0.35);
       ctx.strokeStyle = 'rgba(255,255,255,0.8)';
       path(); ctx.stroke();
       ctx.globalAlpha = 1;
+    }
+  }
+
+  // ---- The drone (drone flight) -------------------------------------------------------
+
+  // The drone sits a little below the middle of the screen, tilted as it leans, with its shadow
+  // on the ground and the rotors shimmering.
+  function droneSelf(ctx: CanvasRenderingContext2D, g: Game, c: Cam): void {
+    const d = g.drone;
+    const name = 'drone_' + d.kind;
+    const m = model(name);
+    drawShadow(ctx, c, name, d.X, d.h, d.Z, d.yaw);
+    const top = g.settings.view === 'top';
+    const pose: Pose = {
+      sx: W / 2,
+      sy: H * (top ? 0.5 : 0.62),
+      px: (W * 0.16) / m.w,
+      yaw: 0,
+      elev: top ? 1.5 : Math.max(0.2, Math.min(1.4, 0.55 - d.pitch * 0.9)),
+      roll: top ? d.roll : d.roll * 0.7,
+    };
+    if (g.phase === 'crashed' && Math.floor(g.blink * 8) % 2 === 0) return;
+    drawModel(ctx, m, pose);
+  }
+
+  // The FPV view: a thin frame of the camera's on-screen display, a centre mark and the horizon.
+  function fpvOverlay(ctx: CanvasRenderingContext2D): void {
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - 8, H / 2); ctx.lineTo(W / 2 - 3, H / 2);
+    ctx.moveTo(W / 2 + 3, H / 2); ctx.lineTo(W / 2 + 8, H / 2);
+    ctx.moveTo(W / 2, H / 2 - 5); ctx.lineTo(W / 2, H / 2 - 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    for (const [x, y, sx, sy] of [[12, 12, 1, 1], [W - 12, 12, -1, 1], [12, H - 12, 1, -1], [W - 12, H - 12, -1, -1]]) {
+      ctx.beginPath();
+      ctx.moveTo(x, y + sy * 14); ctx.lineTo(x, y); ctx.lineTo(x + sx * 14, y);
+      ctx.stroke();
     }
   }
 
@@ -1172,16 +1230,24 @@ namespace PA {
     objects(ctx, g, c);
     birds(ctx, g, c);
     const t2 = performance.now();
-    if (g.settings.view !== 'cockpit' && g.mission.mode === 'glider') rings(ctx, g, c);
+    const droneMode = g.settings.mode === 'drone';
+    if ((g.settings.view !== 'cockpit' || droneMode) && (g.mission.mode === 'glider' || droneMode)) rings(ctx, g, c);
     tracers(ctx, c, g.shots, 'rgba(255,236,150,0.95)', 0.35);
     tracers(ctx, c, g.shells, 'rgba(255,150,90,0.9)', 0.5);
     missiles(ctx, g, c);
     puffs(ctx, g, c);
     lockRing(ctx, g, c);
-    if (g.settings.view !== 'cockpit') plane(ctx, g, c);
+    if (droneMode) {
+      if (g.settings.view !== 'cockpit') droneSelf(ctx, g, c);
+    } else if (g.settings.view !== 'cockpit') {
+      plane(ctx, g, c);
+    }
     lensFlare(ctx, c);
     warnRing(ctx, g);
-    if (g.settings.view === 'cockpit') cockpit(ctx, g);
+    if (g.settings.view === 'cockpit') {
+      if (droneMode) fpvOverlay(ctx);
+      else cockpit(ctx, g);
+    }
     if (g.settings.forces) forces(ctx, g);
     ctx.drawImage(textures().vignette, 0, 0);
     const t3 = performance.now();

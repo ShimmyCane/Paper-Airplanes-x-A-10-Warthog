@@ -518,7 +518,7 @@ namespace PA {
         const a = hs[r.next], b = hs[(r.next + 1) % hs.length];
         const t = r.t;
         const da = Math.hypot(a.X - t.X, a.h - (t.h ?? 0), a.Z - t.Z);
-        const k = Math.max(0, Math.min(0.5, 1 - da / 25)) * 0.6;
+        const k = Math.max(0, Math.min(1, 1 - da / 12)) * 0.25;
         const ax = a.X + (b.X - a.X) * k, ah = a.h + (b.h - a.h) * k, az = a.Z + (b.Z - a.Z) * k;
         let dx = ax - t.X, dy = ah - (t.h ?? 0), dz = az - t.Z;
         const dl = Math.hypot(dx, dy, dz) || 1;
@@ -534,7 +534,10 @@ namespace PA {
         t.Z += r.dir[2] * r.v * dt;
         t.h = Math.max(groundAt(t.X, t.Z) + 0.15, (t.h ?? 0) + r.dir[1] * r.v * dt);
         t.vH = Math.atan2(r.dir[0], r.dir[2]);
-        if (!r.done && da < a.r) {
+        // Through the gate: across its plane, near the middle.
+        const gy = a.yaw ?? 0;
+        const along = (t.X - a.X) * Math.sin(gy) + (t.Z - a.Z) * Math.cos(gy);
+        if (!r.done && (da < a.r || (along > 0 && da < a.r * 2.2))) {
           r.next++;
           if (r.next >= hs.length) {
             r.next = 0;

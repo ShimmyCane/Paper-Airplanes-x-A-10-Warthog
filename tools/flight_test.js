@@ -477,5 +477,88 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   check('arrow: lags about half a second, then follows the turn', Math.abs(soon - before) < 0.05 && g.tagArrow < before - 1, 'now ' + (g.tagArrow * 180 / Math.PI).toFixed(0) + ' deg');
 }
 
+// 32. Drones: each kind flies like its real class.
+{
+  const fly = (kind, secs, sticks, from) => {
+    const d = new PA.Drone(kind);
+    d.place(0, 0, 0, 0);
+    if (from) from(d);
+    let top = 0;
+    for (let i = 0; i < secs * 60; i++) {
+      d.sticks = typeof sticks === 'function' ? sticks(i / 60, d) : sticks;
+      d.step(1 / 60, still, flat);
+      top = Math.max(top, Math.hypot(d.vX, d.vZ));
+    }
+    return { d, top };
+  };
+  const air = (d) => { d.h = 20; };
+  // Camera drone: climbs at about 5 m/s, flies about 15 m/s, stops when let go, hovers in place.
+  const climb = fly('camera', 2, { throttle: 1, yaw: 0, pitch: 0, roll: 0 });
+  check('drone camera: climbs at about 5 m/s', climb.d.vy > 4 && climb.d.vy < 5.5, 'vy ' + climb.d.vy.toFixed(1));
+  const run = fly('camera', 8, { throttle: 0, yaw: 0, pitch: 1, roll: 0 }, air);
+  check('drone camera: top speed about 15 m/s', run.top > 13.5 && run.top < 16, 'top ' + run.top.toFixed(1));
+  const stop = fly('camera', 12, (t) => ({ throttle: 0, yaw: 0, pitch: t < 6 ? 1 : 0, roll: 0 }), air);
+  check('drone camera: let go and it brakes to a hover', Math.hypot(stop.d.vX, stop.d.vZ) < 0.5 && Math.abs(stop.d.h - 20) < 1, 'speed ' + Math.hypot(stop.d.vX, stop.d.vZ).toFixed(2) + ', h ' + stop.d.h.toFixed(1));
+  // Hobby quad: holds its height, slow.
+  const hob = fly('hobby', 10, { throttle: 0, yaw: 0, pitch: 1, roll: 0 }, air);
+  check('drone hobby: holds height and tops out near 8 m/s', Math.abs(hob.d.h - 20) < 1.5 && hob.top > 6 && hob.top < 10, 'top ' + hob.top.toFixed(1) + ', h ' + hob.d.h.toFixed(1));
+  // Racer: a quarter throttle about hovers, full throttle climbs hard, and it is fast.
+  const hov = fly('racer', 3, { throttle: 0.25, yaw: 0, pitch: 0, roll: 0 }, air);
+  check('drone racer: a quarter throttle holds about a hover', Math.abs(hov.d.vy) < 1, 'vy ' + hov.d.vy.toFixed(2));
+  const dash = fly('racer', 6, (t, d) => ({ throttle: 0.55 + Math.max(-0.2, Math.min(0.4, (20 - d.h) * 0.05 - d.vy * 0.05)), yaw: 0, pitch: 1, roll: 0 }), air);
+  check('drone racer: much faster (over 30 m/s)', dash.top > 30, 'top ' + dash.top.toFixed(1));
+  // Military: faster than the camera drone at the top, but slower to get going.
+  const mil = fly('military', 2, { throttle: 0, yaw: 0, pitch: 1, roll: 0 }, air);
+  const cam = fly('camera', 2, { throttle: 0, yaw: 0, pitch: 1, roll: 0 }, air);
+  const milTop = fly('military', 20, { throttle: 0, yaw: 0, pitch: 1, roll: 0 }, air);
+  check('drone military: slower off the mark, faster at the top', mil.top < cam.top && milTop.top > 22, '2 s ' + mil.top.toFixed(1) + ' vs ' + cam.top.toFixed(1) + ', top ' + milTop.top.toFixed(1));
+  // A hard hit on the ground is a crash; a soft landing is not.
+  const soft = new PA.Drone('camera'); soft.place(0, 0, 1, 0); soft.vy = -2;
+  let crashed = false; for (let i = 0; i < 60; i++) crashed = soft.step(1 / 60, still, flat) || crashed;
+  const hard = new PA.Drone('racer'); hard.place(0, 0, 0.3, 0); hard.vy = -15;
+  check('drone: soft landing is fine, a hard hit crashes', !crashed && hard.step(1 / 30, still, flat));
+}
+
+// 33. Stick modes: the same pads mean different things in Mode 2, Mode 1 and Mode 3.
+{
+  const pads = { lx: 0.1, ly: 0.2, rx: 0.3, ry: 0.4 };
+  const m2 = PA.sticksFrom(pads, 'mode2'), m1 = PA.sticksFrom(pads, 'mode1'), m3 = PA.sticksFrom(pads, 'mode3');
+  check('sticks: Mode 2 throttle left, pitch right', m2.thr === 0.2 && m2.yaw === 0.1 && m2.pitch === 0.4 && m2.roll === 0.3);
+  check('sticks: Mode 1 pitch left, throttle right', m1.pitch === 0.2 && m1.yaw === 0.1 && m1.thr === 0.4 && m1.roll === 0.3);
+  check('sticks: Mode 3 pitch and roll left, throttle and yaw right', m3.pitch === 0.2 && m3.roll === 0.1 && m3.thr === 0.4 && m3.yaw === 0.3);
+}
+
+// 34. The drone race: countdown, gates only in order, two laps, rivals finish too.
+{
+  const st = { mode: 'drone', control: 'drag', view: 'chase', difficulty: 'felix', sound: 0, forces: 0, showErrors: 0, safeFlight: 1, invincible: 0, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0, flightHelp: 1, droneKind: 'camera', stickMode: 'mode2' };
+  const g = new PA.Game(st);
+  g.onSound = () => {};
+  check('race: a loop of gates and three rivals on the pad', g.mission.hoops.length >= 10 && g.rivals.length === 3 && g.race.countdown > 0);
+  const x0 = g.plane.X;
+  g.pads = { lx: 0, ly: 1, rx: 0, ry: 1 };
+  for (let i = 0; i < 60; i++) g.update(1 / 30);
+  check('race: nothing moves before the start', g.plane.X === x0 && g.plane.h === 0);
+  for (let i = 0; i < 40; i++) g.update(1 / 30);
+  // Skipping a gate does not count: jump to gate 2 first.
+  const hs = g.mission.hoops;
+  g.plane.X = hs[2].X; g.plane.Z = hs[2].Z; g.plane.h = hs[2].h; g.pads = { lx: 0, ly: 0, rx: 0, ry: 0 };
+  g.update(1 / 30);
+  check('race: a gate out of order does not count', g.race.next === 0);
+  // Fly every gate in order, two laps.
+  for (let lap = 0; lap < 2; lap++) {
+    for (let k = 0; k < hs.length; k++) {
+      g.plane.X = hs[k].X; g.plane.Z = hs[k].Z; g.plane.h = hs[k].h; g.plane.vX = g.plane.vZ = g.plane.vy = 0;
+      g.update(1 / 30);
+    }
+  }
+  check('race: two laps in order finish the race', g.race.finished && g.phase === 'landed' && g.race.results.some(r => r.name === 'You'), 'lap ' + g.race.lap + ', next ' + g.race.next);
+  // Rivals fly the course on their own.
+  const r = new PA.Game(st);
+  r.onSound = () => {};
+  for (let i = 0; i < 30 * 200; i++) r.update(1 / 30);
+  const done = r.rivals.filter(x => x.done).length;
+  check('race: the rivals fly both laps and finish', done === 3, done + ' finished, times ' + r.race.results.map(x => x.time.toFixed(0)).join(', '));
+}
+
 console.log(failures === 0 ? '\nAll flight checks passed.' : '\n' + failures + ' check(s) failed.');
 process.exit(failures ? 1 : 0);
