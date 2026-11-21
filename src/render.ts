@@ -50,7 +50,7 @@ namespace PA {
   const DRONE_VIEWS = {
     chase: { back: 5.5, up: 1.8, tilt: 0.16 },
     top: { back: 1.5, up: 32, tilt: 1.35 },
-    cockpit: { back: -0.15, up: 0.08, tilt: -0.3 },
+    cockpit: { back: -0.15, up: 0.08, tilt: 0.1 },
   };
 
   interface Cam {
@@ -67,8 +67,11 @@ namespace PA {
     const drone = g.settings.mode === 'drone';
     const fpv = drone && g.settings.view === 'cockpit';
     const v0 = (drone ? DRONE_VIEWS : VIEWS)[g.settings.view];
-    // The FPV camera is bolted to the frame: it tips down as the drone leans forward.
-    const v = fpv ? { back: v0.back, up: v0.up, tilt: v0.tilt - p.pitch } : v0;
+    // The FPV camera: camera and military drones hold it level on a gimbal; on the hobby and
+    // racing quads it is bolted to the frame (the racer's tilted up), so it tips and rolls with it.
+    const kind = drone ? (p as Drone).kind : 'camera';
+    const gimbal = kind === 'camera' || kind === 'military';
+    const v = fpv ? { back: v0.back, up: v0.up, tilt: gimbal ? 0.1 : (kind === 'racer' ? -0.35 : -0.08) - p.pitch } : v0;
     const sinY = Math.sin(p.yaw), cosY = Math.cos(p.yaw);
     const hx = sinY, hz = cosY;             // horizontal forward
     const rhx = cosY, rhz = -sinY;          // horizontal right
@@ -77,7 +80,7 @@ namespace PA {
     const pz = p.Z - hz * v.back;
     // Look down by the view's tilt, then roll with part of the bank (a right bank rolls the
     // camera right, so the land tips the other way). The top view stays level.
-    const roll = g.settings.view === 'top' ? 0 : fpv ? -p.bank : -(drone ? 0.3 : ROLL_FOLLOW) * p.bank;
+    const roll = g.settings.view === 'top' ? 0 : fpv ? (gimbal ? 0 : -p.bank) : -(drone ? 0.3 : ROLL_FOLLOW) * p.bank;
     const ct = Math.cos(v.tilt), st = Math.sin(v.tilt);
     const fx = hx * ct, fy = -st, fz = hz * ct;
     const u0x = hx * st, u0y = ct, u0z = hz * st;
@@ -846,7 +849,8 @@ namespace PA {
         depth = p[2];
       }
       if (pts.length < 32) continue;
-      const w = Math.max(1.5, 2.2 * FOCAL / depth);
+      // A glider ring is a thick tube seen from far; a drone gate is a thin frame seen close.
+      const w = Math.min(10, Math.max(1.5, (ring.yaw !== undefined ? 0.28 : 2.2) * FOCAL / depth));
       const path = () => {
         ctx.beginPath();
         ctx.moveTo(pts[0][0], pts[0][1]);

@@ -557,3 +557,6 @@ body.drone .actions, body.drone .stick, body.drone .throttle, body.drone .radar 
 .droneOnly { display: none; }
 body.drone .droneOnly { display: block; }
 body.drone .objective { display: none; }
+body.drone .hud > :not(.keep), body.drone .jetOnly { display: none; }
+body.drone .gear { top: 12px; bottom: auto; }
+body.drone .drawer { top: 92px; bottom: auto; }
