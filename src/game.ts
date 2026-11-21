@@ -142,6 +142,7 @@ namespace PA {
   const ENEMY_MISSILE_COOL = 7;
   const BREAK_TURN = 0.6;                // a yaw this hard, held this long, breaks the enemy's lock
   const BREAK_TIME = 0.6;
+  const TAG_ARROW_DELAY = 0.5;           // seconds the red arrow to the launcher lags behind
   const CHAFF_LIFE = 4;
   const CHAFF_DECOY_RANGE = 320;
   const FLOOR = 30;
@@ -192,6 +193,10 @@ namespace PA {
     lock: Lock = { target: null, progress: 0 };
     tagged = false;            // an enemy missile is after the plane
     tagDist = 0;              // its distance, metres
+    tagSource: Target | null = null;   // who launched it: a SAM site or a fighter
+    tagArrow: number | null = null;    // bearing to the launcher (0 ahead, + right), shown half a second late
+    tagSrcDist = 0;
+    private tagHistory: { t: number; b: number; d: number }[] = [];
     breakTimer = 0;
     beepTimer = 0;
     objectiveGoal = 0;
@@ -831,6 +836,7 @@ namespace PA {
       }
       this.tagged = active;
       this.tagDist = active ? nearest : 0;
+      this.updateTagArrow();
       if (active) {
         this.beepTimer -= dt;
         if (this.beepTimer <= 0) {
@@ -840,6 +846,33 @@ namespace PA {
       } else {
         this.beepTimer = 0;
       }
+    }
+
+    // The red arrow points at the launcher of the nearest missile on the plane, half a second late:
+    // the bearing is recorded each frame and the one from TAG_ARROW_DELAY ago is shown.
+    private updateTagArrow(): void {
+      const p = this.plane;
+      let src: Target | null = null;
+      let best = Infinity;
+      for (const m of this.missiles) {
+        if (!m.enemy || m.broken || !m.src) continue;
+        const d = Math.hypot(m.X - p.X, m.h - p.h, m.Z - p.Z);
+        if (d < best) { best = d; src = m.src; }
+      }
+      this.tagSource = src;
+      if (!src) {
+        this.tagHistory = [];
+        this.tagArrow = null;
+        return;
+      }
+      let b = Math.atan2(src.X - p.X, src.Z - p.Z) - p.yaw;
+      while (b > Math.PI) b -= 2 * Math.PI;
+      while (b < -Math.PI) b += 2 * Math.PI;
+      this.tagHistory.push({ t: this.time, b, d: Math.hypot(src.X - p.X, src.Z - p.Z) });
+      while (this.tagHistory.length > 1 && this.tagHistory[1].t <= this.time - TAG_ARROW_DELAY) this.tagHistory.shift();
+      const old = this.tagHistory[0];
+      this.tagArrow = old.b;
+      this.tagSrcDist = old.d;
     }
 
     // Where a target is moving to, per second (vehicles on the road, fighters, allies on their orbit).

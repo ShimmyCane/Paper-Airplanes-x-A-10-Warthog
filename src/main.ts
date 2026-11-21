@@ -645,6 +645,7 @@ namespace PA {
     game = new Game(settings);
     game.settings = settings;
     game.onSound = name => sound.play(name);
+    (window as unknown as { paGame: Game }).paGame = game;   // for the browser checks
     renderSettings();
 
     window.addEventListener('error', e => logError(e.message));

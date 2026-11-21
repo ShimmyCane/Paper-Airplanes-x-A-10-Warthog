@@ -1071,6 +1071,32 @@ namespace PA {
     ctx.beginPath();
     ctx.arc(W / 2, H * PLANE_SCREEN_Y, r, 0, Math.PI * 2);
     ctx.stroke();
+    // The red arrow to the radar that locked on (0 = straight ahead, which is up on the screen).
+    if (g.tagArrow !== null) {
+      const cx = W / 2, cy = H * PLANE_SCREEN_Y;
+      const ring = Math.max(r, 46) + 10;
+      const a = g.tagArrow;
+      const sx = Math.sin(a), sy = -Math.cos(a);
+      const tipX = cx + sx * (ring + 18), tipY = cy + sy * (ring + 18);
+      const baseX = cx + sx * ring, baseY = cy + sy * ring;
+      const px = -sy, py = sx;
+      ctx.fillStyle = '#ff2d2d';
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(baseX + px * 9, baseY + py * 9);
+      ctx.lineTo(baseX - px * 9, baseY - py * 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.font = 'bold 9px system-ui, sans-serif';
+      ctx.fillStyle = '#ff2d2d';
+      ctx.textAlign = 'center';
+      const kind = g.tagSource && g.tagSource.faction === 'enemy' ? 'FIGHTER' : 'SAM';
+      ctx.fillText(kind + ' ' + Math.round(g.tagSrcDist) + 'm', tipX + sx * 16, tipY + sy * 12 + 3);
+      ctx.textAlign = 'left';
+    }
   }
 
   function arrow(ctx: CanvasRenderingContext2D, x: number, y: number, vx: number, vy: number, color: string, label: string): void {

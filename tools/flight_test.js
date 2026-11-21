@@ -335,12 +335,14 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   const g = new PA.Game(st);
   g.onSound = () => {};
   g.mission.targets = [];
-  g.missiles.push({ X: g.plane.X + 50, Z: g.plane.Z + 200, h: g.plane.h, vX: 0, vY: 0, vZ: -100, life: 5, target: null, enemy: true });
+  const tagM = { X: g.plane.X + 50, Z: g.plane.Z + 200, h: g.plane.h, vX: 0, vY: 0, vZ: -100, life: 5, target: null, enemy: true };
+  g.missiles.push(tagM);
   g.update(1 / 30);
   check('tag: an enemy missile tags the plane', g.tagged === true && g.tagDist > 0, 'distance ' + Math.round(g.tagDist));
   g.axes = { yaw: 1, pitch: 0 };
+  // Only this missile is checked: a SAM that comes into range during the turn may launch a new one.
   for (let i = 0; i < 2 * 30; i++) g.update(1 / 30);
-  check('tag: a hard turn breaks the lock', g.missiles.every(m => !m.enemy || m.broken));
+  check('tag: a hard turn breaks the lock', tagM.broken === true || !g.missiles.includes(tagM));
   g.fireChaff();
   check('chaff: two decoys come out and one is used', g.decoys.length === 2 && g.chaff === PA.CHAFF_MAX - 1);
 }
@@ -454,6 +456,25 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   // A missile hit hurts far more than a machine-gun hit.
   const hit = (dmg) => { const g = new PA.Game(st); g.onSound = () => {}; g.mission.targets = []; g.shells.push({ X: g.plane.X, Z: g.plane.Z, h: g.plane.h, vX: 0, vY: 0, vZ: 0, life: 2, dmg }); g.update(1 / 30); return 100 - g.hull; };
   check('fire: a machine-gun hit is small', hit(4) <= 5, 'lost ' + hit(4));
+}
+
+// 31. The red arrow points at the launcher, half a second late.
+{
+  const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 1, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0, flightHelp: 1 };
+  const g = new PA.Game(st);
+  g.onSound = () => {};
+  g.plane.start(0, 0, 200, 50, 0, 0, 0.36);
+  const sam = PA.target('sam', 600, 300, () => 0.5);   // ahead and to the right
+  sam.cool = 0;
+  g.mission.targets = [sam];
+  g.update(1 / 30);
+  check('arrow: shows when a SAM launches, pointing right of the nose', g.tagArrow !== null && g.tagArrow > 0.5 && g.tagArrow < 1.6, 'bearing ' + (g.tagArrow === null ? 'none' : (g.tagArrow * 180 / Math.PI).toFixed(0) + ' deg'));
+  const before = g.tagArrow;
+  g.plane.yaw += Math.PI / 2;            // the plane turns right 90 degrees at once
+  g.update(1 / 30);
+  const soon = g.tagArrow;
+  for (let i = 0; i < 20; i++) g.update(1 / 30);
+  check('arrow: lags about half a second, then follows the turn', Math.abs(soon - before) < 0.05 && g.tagArrow < before - 1, 'now ' + (g.tagArrow * 180 / Math.PI).toFixed(0) + ' deg');
 }
 
 console.log(failures === 0 ? '\nAll flight checks passed.' : '\n' + failures + ' check(s) failed.');

@@ -1604,6 +1604,7 @@ var PA;
     const ENEMY_MISSILE_COOL = 7;
     const BREAK_TURN = 0.6; // a yaw this hard, held this long, breaks the enemy's lock
     const BREAK_TIME = 0.6;
+    const TAG_ARROW_DELAY = 0.5; // seconds the red arrow to the launcher lags behind
     const CHAFF_LIFE = 4;
     const CHAFF_DECOY_RANGE = 320;
     const FLOOR = 30;
@@ -1653,6 +1654,10 @@ var PA;
             this.lock = { target: null, progress: 0 };
             this.tagged = false; // an enemy missile is after the plane
             this.tagDist = 0; // its distance, metres
+            this.tagSource = null; // who launched it: a SAM site or a fighter
+            this.tagArrow = null; // bearing to the launcher (0 ahead, + right), shown half a second late
+            this.tagSrcDist = 0;
+            this.tagHistory = [];
             this.breakTimer = 0;
             this.beepTimer = 0;
             this.objectiveGoal = 0;
@@ -2321,6 +2326,7 @@ var PA;
             }
             this.tagged = active;
             this.tagDist = active ? nearest : 0;
+            this.updateTagArrow();
             if (active) {
                 this.beepTimer -= dt;
                 if (this.beepTimer <= 0) {
@@ -2331,6 +2337,39 @@ var PA;
             else {
                 this.beepTimer = 0;
             }
+        }
+        // The red arrow points at the launcher of the nearest missile on the plane, half a second late:
+        // the bearing is recorded each frame and the one from TAG_ARROW_DELAY ago is shown.
+        updateTagArrow() {
+            const p = this.plane;
+            let src = null;
+            let best = Infinity;
+            for (const m of this.missiles) {
+                if (!m.enemy || m.broken || !m.src)
+                    continue;
+                const d = Math.hypot(m.X - p.X, m.h - p.h, m.Z - p.Z);
+                if (d < best) {
+                    best = d;
+                    src = m.src;
+                }
+            }
+            this.tagSource = src;
+            if (!src) {
+                this.tagHistory = [];
+                this.tagArrow = null;
+                return;
+            }
+            let b = Math.atan2(src.X - p.X, src.Z - p.Z) - p.yaw;
+            while (b > Math.PI)
+                b -= 2 * Math.PI;
+            while (b < -Math.PI)
+                b += 2 * Math.PI;
+            this.tagHistory.push({ t: this.time, b, d: Math.hypot(src.X - p.X, src.Z - p.Z) });
+            while (this.tagHistory.length > 1 && this.tagHistory[1].t <= this.time - TAG_ARROW_DELAY)
+                this.tagHistory.shift();
+            const old = this.tagHistory[0];
+            this.tagArrow = old.b;
+            this.tagSrcDist = old.d;
         }
         // Where a target is moving to, per second (vehicles on the road, fighters, allies on their orbit).
         targetVelocity(t) {
@@ -3968,6 +4007,32 @@ var PA;
         ctx.beginPath();
         ctx.arc(PA.W / 2, PA.H * PLANE_SCREEN_Y, r, 0, Math.PI * 2);
         ctx.stroke();
+        // The red arrow to the radar that locked on (0 = straight ahead, which is up on the screen).
+        if (g.tagArrow !== null) {
+            const cx = PA.W / 2, cy = PA.H * PLANE_SCREEN_Y;
+            const ring = Math.max(r, 46) + 10;
+            const a = g.tagArrow;
+            const sx = Math.sin(a), sy = -Math.cos(a);
+            const tipX = cx + sx * (ring + 18), tipY = cy + sy * (ring + 18);
+            const baseX = cx + sx * ring, baseY = cy + sy * ring;
+            const px = -sy, py = sx;
+            ctx.fillStyle = '#ff2d2d';
+            ctx.strokeStyle = PA.INK;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(tipX, tipY);
+            ctx.lineTo(baseX + px * 9, baseY + py * 9);
+            ctx.lineTo(baseX - px * 9, baseY - py * 9);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.font = 'bold 9px system-ui, sans-serif';
+            ctx.fillStyle = '#ff2d2d';
+            ctx.textAlign = 'center';
+            const kind = g.tagSource && g.tagSource.faction === 'enemy' ? 'FIGHTER' : 'SAM';
+            ctx.fillText(kind + ' ' + Math.round(g.tagSrcDist) + 'm', tipX + sx * 16, tipY + sy * 12 + 3);
+            ctx.textAlign = 'left';
+        }
     }
     function arrow(ctx, x, y, vx, vy, color, label) {
         const len = Math.hypot(vx, vy);
@@ -4861,6 +4926,7 @@ var PA;
         game = new PA.Game(settings);
         game.settings = settings;
         game.onSound = name => sound.play(name);
+        window.paGame = game; // for the browser checks
         renderSettings();
         window.addEventListener('error', e => logError(e.message));
         window.addEventListener('unhandledrejection', e => logError('Promise: ' + String(e.reason)));
