@@ -2,6 +2,12 @@
 -- and an index table that says what each identifier code means.
 -- NOT applied yet. Jimmy pastes it into the Family project after the test file passes.
 -- Table names are general (no app prefix), so every project shares them.
+-- v2 (2026-11-21): starts by dropping both tables (a clean reset; any notes in them are lost),
+-- and registers them with access 'owner' (the registry allows only 'owner' or 'reads').
+
+drop table if exists public.gen_notes cascade;
+drop table if exists public.gen_notes_index cascade;
+delete from public.app_table_registry where object_name in ('gen_notes', 'gen_notes_index');
 
 create table if not exists public.gen_notes (
   identifier text primary key,                 -- N-0001, never changed
@@ -55,6 +61,6 @@ create policy "Family can add gen_notes_index" on public.gen_notes_index
 
 insert into public.app_table_registry (app, object_name, object_type, access, description, repo)
 values
-  ('general-notes', 'gen_notes', 'table', 'family', 'Notes for improvement, all projects', 'ShimmyCane/Index'),
-  ('general-notes', 'gen_notes_index', 'table', 'family', 'What each note identifier code means', 'ShimmyCane/Index')
+  ('general-notes', 'gen_notes', 'table', 'owner', 'Notes for improvement, all projects', 'ShimmyCane/Index'),
+  ('general-notes', 'gen_notes_index', 'table', 'owner', 'What each note identifier code means', 'ShimmyCane/Index')
 on conflict (app, object_name) do nothing;
