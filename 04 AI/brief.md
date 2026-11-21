@@ -102,3 +102,12 @@ A browser 2.5D pixel-art flight game, built small enough to read, so Jimmy can s
 ## Moved to its own repo (2026-11-21)
 
 - This repo held the round-8 copy from 2026-11-19. Synced to the nursery's version 0.18 (voxel graphics, animations, curved vapour, wrecks, wind, flags, cache-busting links). Work continues here.
+
+## Round 13 (convo v0.19–v0.20)
+
+- Flight helper (stall guard, automatic speed, nose drop when slow); throttle lever when it is off.
+- Archived the jet game as `v2/`.
+- Enemy fire typed by weapon, every shot from a visible gun; SAMs launch missiles; red arrow to the launcher, half a second late.
+- Drone flight: four drones, Mode 2/1/3 sticks, a two-lap gate race with three rivals, best time on the device.
+- Notes SQL rewritten (reset, `owner` access); not applied.
+- Checks: `npm test` all pass; browser screenshots, no errors. Not tested on an iPad.

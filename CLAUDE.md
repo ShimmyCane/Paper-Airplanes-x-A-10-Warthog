@@ -14,7 +14,8 @@ Test: `npm test` (flight model, mission seeds, headless, no browser). The browse
 Rules:
 - Source is TypeScript in `src/`; `js/game.js` is the only script the page loads. Never edit `js/game.js` by hand.
 - No image files. Every object is a voxel model in `src/assets/models.ts`, drawn by sprite stacking (`src/voxel.ts`); the land and sky are painted per pixel in `src/render.ts`.
-- Change flight numbers only in `src/flight.ts` (`AIR`), and run `npm test` after.
+- Change flight numbers only in `src/flight.ts` (`AIR`) and drone numbers only in `src/drone.ts` (`DRONES`), and run `npm test` after.
+- Archived builds live in `v1/` and `v2/` (each self-contained); never edit them.
 - Do not copy code or art from the reference page (remix.ui8.ai/fly) or from any game; re-make ideas from the physics.
 - Felix's first name only if at all; no photos, no school or location details.
 - No database for now (nothing persists). If scores later need to be kept, follow `supabase-link` and the family conventions.

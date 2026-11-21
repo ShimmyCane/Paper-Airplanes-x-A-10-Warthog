@@ -49,3 +49,11 @@
 - **Bridge gaps in ribbons.** When a ribbon trail restarts, insert an invisible point so it does not join the old end with a straight line.
 
 - **Bump the version every release.** VERSION sat at 0.1.0 for eleven rounds, so Jimmy could not tell whether he had the update. Bump `VERSION` and the `?v=` cache-buster on the script and CSS links together.
+
+## 2026-11-21 (round 13)
+
+- **Check a registry's constraints before writing a script for it.** `app_table_registry.access` only allows `owner` or `reads`; read `pg_constraint` first.
+- **A test that checks "every missile" fails when the world spawns new ones.** Keep a reference to the thing under test.
+- **Ring and gate sizes carry the jet's scale.** A line width set for 6 m rings seen from 100 m fills the screen at 10 m; scale by what is being drawn.
+- **A drone with GPS holds a speed: do not add drag on top of its speed controller,** or it never reaches its top speed.
+- **Pursuit AI that aims past a gate can orbit it.** Count a gate when the racer crosses its plane near the middle.

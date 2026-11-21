@@ -2,7 +2,7 @@
 // Shared numbers for the whole game. Change a number here, rebuild, reload.
 var PA;
 (function (PA) {
-    PA.VERSION = '0.18 (2026-11-21: curved vapour, burning wrecks, wind, flags)';
+    PA.VERSION = '0.20 (2026-11-21: drone flight, real enemy fire, red radar arrow, throttle lever)';
     // Internal resolution. The canvas is small on purpose: every pixel is a
     // "pixel-art pixel", and the page scales it up with no smoothing.
     PA.W = 480;

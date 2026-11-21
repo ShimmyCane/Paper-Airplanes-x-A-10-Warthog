@@ -132,3 +132,11 @@ Flight: plane (A-10 jet / paper glider), steering (drag / joystick), new flight.
 
 - **Stall guard, automatic speed and a slow-speed nose drop** in `Aircraft.step` (`assist`), set from `settings.flightHelp`. See `convo/convo v0.19.md`.
 - **Why:** the nose passed the stall angle in a quarter of a second, and the fixed cruise throttle could not hold speed in a climb.
+
+## Round 13 (0.20): v2 archived, real enemy fire, radar arrow, throttle lever, drone flight
+
+- **v2** (`v2/`): the jet game with the flight helper, frozen. Linked from ⚙️ › Archived.
+- **Throttle lever** (`#throttle`, `Game.throttleSet`): shown in the jet with the flight helper off.
+- **Weapons** (`Gun` in `src/world.ts`): `type` (mg, flak, cannon, sam), `dmg`, `elev` (highest aim), `spread`. `Game.fireAt` leads the plane, scatters by `spread`, and flashes at the gun; SAMs call `launchEnemyMissile` (with `src`). Missiles do `MISSILE_DAMAGE` (45).
+- **Red arrow:** `Game.tagArrow` (bearing from the nose), from a half-second history (`TAG_ARROW_DELAY`); drawn in `warnRing`.
+- **Drone flight** (`src/drone.ts`): `Drone extends Aircraft`; `DRONES` holds the four kinds; `sticksFrom` maps two pads to throttle, yaw, pitch and roll for Mode 2, 1 and 3. The race (`Game.race`, `Game.rivals`, `droneCourse()` in `world.ts`): 14 gates with a heading, two laps, gates in order, crash penalty 3 s. Camera: `DRONE_VIEWS` in `render.ts` (chase 5.5 m back, top-down, FPV with a gimbal or a fixed camera). Models `drone_*` and `rival1-3` in `models.ts`.
