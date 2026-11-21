@@ -207,6 +207,7 @@ namespace PA {
     warned = false;
     held: Held = { fire: false, boost: false, missile: false };
     axes: Axes = { yaw: 0, pitch: 0 };
+    throttleSet = CRUISE_THROTTLE;   // the throttle lever, used when the flight helper is off
     onSound: (name: SoundName) => void = () => {};
     private rand = random(1);
 
@@ -316,7 +317,7 @@ namespace PA {
       const pilot: Pilot = {
         pitch: clamp(this.axes.pitch),
         yaw: clamp(this.axes.yaw),
-        throttle: jet ? (this.held.boost ? 1 : CRUISE_THROTTLE) : 0,
+        throttle: jet ? (this.held.boost ? 1 : this.settings.flightHelp === 1 ? CRUISE_THROTTLE : this.throttleSet) : 0,
       };
       this.plane.assist = this.settings.flightHelp === 1;
       this.floorActive = false;

@@ -64,6 +64,7 @@ namespace PA {
     document.body.classList.toggle('glider', settings.mode === 'glider');
     document.body.classList.toggle('jet', settings.mode === 'jet');
     document.body.classList.toggle('joy', settings.control === 'stick');
+    document.body.classList.toggle('manual', settings.flightHelp !== 1);
   }
 
   // The sound sliders, as 0-1 values for the audio channels.
@@ -133,6 +134,7 @@ namespace PA {
     KeyM: 'missile',
     KeyC: 'chaff',
     KeyV: 'view',
+    KeyR: 'thrUp', KeyF: 'thrDown',
   };
 
   function bindKeys(): void {
@@ -142,6 +144,8 @@ namespace PA {
       e.preventDefault();
       if (k === 'view') {
         cycleView();
+      } else if (k === 'thrUp' || k === 'thrDown') {
+        setThrottle(game.throttleSet + (k === 'thrUp' ? 0.1 : -0.1));
       } else if (k === 'chaff') {
         if (!e.repeat) game.fireChaff();
       } else if (k === 'fire' || k === 'boost' || k === 'missile') {
@@ -155,6 +159,7 @@ namespace PA {
       const k = keyMap[e.code];
       if (!k) return;
       if (k === 'fire' || k === 'boost' || k === 'missile') game.held[k] = false;
+      else if (k === 'thrUp' || k === 'thrDown' || k === 'view' || k === 'chaff') return;
       else keys[k as 'up' | 'down' | 'left' | 'right'] = false;
     });
     window.addEventListener('blur', () => {
@@ -175,7 +180,7 @@ namespace PA {
 
   // ---- Drag relative to the centre of the screen ------------------------
 
-  const IGNORE = '.actions, .stick, #gear, .gearHot, .drawer, .errorsPanel, .tutorial, button, input, label';
+  const IGNORE = '.actions, .stick, .throttle, #gear, .gearHot, .drawer, .errorsPanel, .tutorial, button, input, label';
 
   function dz(v: number): number {
     if (Math.abs(v) < DEAD) return 0;
@@ -243,6 +248,41 @@ namespace PA {
     };
     stick.addEventListener('pointerup', end);
     stick.addEventListener('pointercancel', end);
+  }
+
+  // ---- Throttle lever (jet with the flight helper off) -------------------
+
+  function setThrottle(v: number): void {
+    game.throttleSet = Math.max(0, Math.min(1, v));
+    showThrottle();
+  }
+
+  function showThrottle(): void {
+    const pct = Math.round(game.throttleSet * 100);
+    $('throttleFill').style.height = pct + '%';
+    $('throttleGrip').style.bottom = pct + '%';
+    $('throttleLabel').textContent = pct + '%';
+  }
+
+  function bindThrottle(): void {
+    const lever = $('throttle');
+    let id = -1;
+    const move = (e: PointerEvent) => {
+      const r = lever.getBoundingClientRect();
+      setThrottle(1 - (e.clientY - r.top) / r.height);
+    };
+    lever.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      sound.unlock();
+      id = e.pointerId;
+      capture(lever, e.pointerId);
+      move(e);
+    });
+    lever.addEventListener('pointermove', e => { if (e.pointerId === id) move(e); });
+    const end = (e: PointerEvent) => { if (e.pointerId === id) id = -1; };
+    lever.addEventListener('pointerup', end);
+    lever.addEventListener('pointercancel', end);
+    showThrottle();
   }
 
   // ---- Action buttons (lower right) -------------------------------------
@@ -636,6 +676,7 @@ namespace PA {
     showTutorial();
     bindDrag();
     bindStick();
+    bindThrottle();
     bindActions();
     bindGear();
     bindNotes();

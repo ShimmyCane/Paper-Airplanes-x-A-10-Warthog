@@ -1671,6 +1671,7 @@ var PA;
             this.warned = false;
             this.held = { fire: false, boost: false, missile: false };
             this.axes = { yaw: 0, pitch: 0 };
+            this.throttleSet = CRUISE_THROTTLE; // the throttle lever, used when the flight helper is off
             this.onSound = () => { };
             this.rand = PA.random(1);
             this.newFlight(Math.floor(Math.random() * 100000));
@@ -1780,7 +1781,7 @@ var PA;
             const pilot = {
                 pitch: clamp(this.axes.pitch),
                 yaw: clamp(this.axes.yaw),
-                throttle: jet ? (this.held.boost ? 1 : CRUISE_THROTTLE) : 0,
+                throttle: jet ? (this.held.boost ? 1 : this.settings.flightHelp === 1 ? CRUISE_THROTTLE : this.throttleSet) : 0,
             };
             this.plane.assist = this.settings.flightHelp === 1;
             this.floorActive = false;
@@ -4249,6 +4250,7 @@ var PA;
         document.body.classList.toggle('glider', settings.mode === 'glider');
         document.body.classList.toggle('jet', settings.mode === 'jet');
         document.body.classList.toggle('joy', settings.control === 'stick');
+        document.body.classList.toggle('manual', settings.flightHelp !== 1);
     }
     // The sound sliders, as 0-1 values for the audio channels.
     function applySound() {
@@ -4315,6 +4317,7 @@ var PA;
         KeyM: 'missile',
         KeyC: 'chaff',
         KeyV: 'view',
+        KeyR: 'thrUp', KeyF: 'thrDown',
     };
     function bindKeys() {
         window.addEventListener('keydown', e => {
@@ -4324,6 +4327,9 @@ var PA;
             e.preventDefault();
             if (k === 'view') {
                 cycleView();
+            }
+            else if (k === 'thrUp' || k === 'thrDown') {
+                setThrottle(game.throttleSet + (k === 'thrUp' ? 0.1 : -0.1));
             }
             else if (k === 'chaff') {
                 if (!e.repeat)
@@ -4343,6 +4349,8 @@ var PA;
                 return;
             if (k === 'fire' || k === 'boost' || k === 'missile')
                 game.held[k] = false;
+            else if (k === 'thrUp' || k === 'thrDown' || k === 'view' || k === 'chaff')
+                return;
             else
                 keys[k] = false;
         });
@@ -4361,7 +4369,7 @@ var PA;
         renderSettings();
     }
     // ---- Drag relative to the centre of the screen ------------------------
-    const IGNORE = '.actions, .stick, #gear, .gearHot, .drawer, .errorsPanel, .tutorial, button, input, label';
+    const IGNORE = '.actions, .stick, .throttle, #gear, .gearHot, .drawer, .errorsPanel, .tutorial, button, input, label';
     function dz(v) {
         if (Math.abs(v) < DEAD)
             return 0;
@@ -4433,6 +4441,39 @@ var PA;
         };
         stick.addEventListener('pointerup', end);
         stick.addEventListener('pointercancel', end);
+    }
+    // ---- Throttle lever (jet with the flight helper off) -------------------
+    function setThrottle(v) {
+        game.throttleSet = Math.max(0, Math.min(1, v));
+        showThrottle();
+    }
+    function showThrottle() {
+        const pct = Math.round(game.throttleSet * 100);
+        $('throttleFill').style.height = pct + '%';
+        $('throttleGrip').style.bottom = pct + '%';
+        $('throttleLabel').textContent = pct + '%';
+    }
+    function bindThrottle() {
+        const lever = $('throttle');
+        let id = -1;
+        const move = (e) => {
+            const r = lever.getBoundingClientRect();
+            setThrottle(1 - (e.clientY - r.top) / r.height);
+        };
+        lever.addEventListener('pointerdown', e => {
+            e.preventDefault();
+            sound.unlock();
+            id = e.pointerId;
+            capture(lever, e.pointerId);
+            move(e);
+        });
+        lever.addEventListener('pointermove', e => { if (e.pointerId === id)
+            move(e); });
+        const end = (e) => { if (e.pointerId === id)
+            id = -1; };
+        lever.addEventListener('pointerup', end);
+        lever.addEventListener('pointercancel', end);
+        showThrottle();
     }
     // ---- Action buttons (lower right) -------------------------------------
     function bindActions() {
@@ -4819,6 +4860,7 @@ var PA;
         showTutorial();
         bindDrag();
         bindStick();
+        bindThrottle();
         bindActions();
         bindGear();
         bindNotes();
