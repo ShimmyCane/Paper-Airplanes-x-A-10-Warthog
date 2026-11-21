@@ -5,7 +5,7 @@ namespace PA {
   const DEFAULTS: Settings = {
     mode: 'glider', control: 'drag', view: 'chase', difficulty: 'felix', sound: 1,
     volMusic: 20, volGun: 25, volTurn: 25, volWarn: 60,
-    forces: 0, safeFlight: 1, invincible: 0, autoReload: 1,
+    forces: 0, flightHelp: 1, safeFlight: 1, invincible: 0, autoReload: 1,
     enemyWave: 2, allies: 1, showErrors: 0,
   };
   const VIEW_ORDER: View[] = ['chase', 'top', 'cockpit'];

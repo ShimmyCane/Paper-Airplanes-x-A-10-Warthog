@@ -82,6 +82,37 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   check('turn: the plane moves to the right of its start', p.X > 10 && p.bank > 0, 'X = ' + p.X.toFixed(0) + ', bank = ' + p.bank.toFixed(2));
 }
 
+// 6b. Flight helper: a long, hard pull never stalls, and the speed comes back by itself.
+{
+  const pull = (assist) => {
+    const p = new PA.Aircraft(true);
+    p.assist = assist;
+    p.start(0, 0, 200, 50, 0.05, 0, 0.36);
+    let stalled = 0, low = 999;
+    for (let i = 0; i < 20 * 60; i++) {
+      p.step(1 / 60, { pitch: i < 120 ? 1 : 0, yaw: 0, throttle: 0.36 }, flat);
+      if (p.stalled) stalled++;
+      if (i > 120) low = Math.min(low, p.speed);
+    }
+    return { stalled, low, end: p.speed };
+  };
+  const off = pull(false), on = pull(true);
+  check('helper off: a 2 s full pull stalls (real flying)', off.stalled > 0, 'stalled frames ' + off.stalled);
+  check('helper on: a 2 s full pull never stalls', on.stalled === 0, 'stalled frames ' + on.stalled);
+  check('helper on: speed stays above 50 knots', on.low * 1.94 > 50, 'lowest ' + (on.low * 1.94).toFixed(0) + ' kt');
+  check('helper on: speed comes back near cruise', on.end * 1.94 > 85, 'end ' + (on.end * 1.94).toFixed(0) + ' kt');
+
+  const p = new PA.Aircraft(true);
+  p.assist = true;
+  p.start(0, 0, 200, 50, 0.05, 0, 0.36);
+  let stalled = 0;
+  for (let i = 0; i < 30 * 60; i++) {
+    p.step(1 / 60, { pitch: 1, yaw: 0, throttle: 0.36 }, flat);
+    if (p.stalled) stalled++;
+  }
+  check('helper on: holding full nose up for 30 s never stalls', stalled === 0 && p.speed * 1.94 > 50, 'speed ' + (p.speed * 1.94).toFixed(0) + ' kt');
+}
+
 // 7. Missions: the same seed gives the same targets and rings; free play has ground targets.
 {
   const a = PA.makeMission('jet', 42);

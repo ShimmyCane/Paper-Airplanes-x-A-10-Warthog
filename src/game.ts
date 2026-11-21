@@ -20,6 +20,7 @@ namespace PA {
     volTurn: number;
     volWarn: number;
     forces: number;
+    flightHelp: number;   // 1 = the flight helper: stall guard and automatic speed
     safeFlight: number;   // 1 = a floor above the ground: the plane levels out and pulls up
     invincible: number;   // 1 = hits do no harm (the damage still shows)
     autoReload: number;   // 1 = missiles come back over time
@@ -317,6 +318,7 @@ namespace PA {
         yaw: clamp(this.axes.yaw),
         throttle: jet ? (this.held.boost ? 1 : CRUISE_THROTTLE) : 0,
       };
+      this.plane.assist = this.settings.flightHelp === 1;
       this.floorActive = false;
       if (jet && this.settings.safeFlight === 1) this.applyFloor(pilot);
 
