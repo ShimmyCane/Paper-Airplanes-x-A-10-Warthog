@@ -90,15 +90,15 @@ namespace PA {
   }
 
   function onSeg(key: keyof Settings, value: string): void {
-    if (key === 'mode' || key === 'control' || key === 'view' || key === 'difficulty') {
+    if (key === 'mode' || key === 'control' || key === 'view' || key === 'difficulty' || key === 'droneKind' || key === 'stickMode') {
       (settings as unknown as Record<string, unknown>)[key] = value;
     } else {
-      settings[key] = +value;
+      (settings as unknown as Record<string, number>)[key] = +value;
     }
     if (key === 'sound') applySound();
     saveSettings();
     renderSettings();
-    if (key === 'mode') restart();
+    if (key === 'mode' || key === 'droneKind') restart();
     if (key === 'control') {
       dragAxes = null;
       stickAxes = null;

@@ -156,6 +156,9 @@ var PA;
         rail: { r: 2.5, height: 2.5, hp: 1, points: 40, group: 'rail' },
         fighter: { r: 4.5, height: 3.0, hp: 1, points: 200, group: 'air', gun: { range: 380, cool: 2.6, speed: 330, type: 'mg', dmg: 6, elev: 1.6, spread: 0.03 } },
         ally: { r: 3.0, height: 2.5, hp: 1, points: -300, group: 'air' },
+        rival1: { r: 0.5, height: 0.3, hp: 1, points: 0, group: 'air' },
+        rival2: { r: 0.5, height: 0.3, hp: 1, points: 0, group: 'air' },
+        rival3: { r: 0.5, height: 0.3, hp: 1, points: 0, group: 'air' },
     };
     // Which kinds drive along the road (and how fast, metres per second).
     PA.DRIVES = { tank_mbt: 3, tank_light: 6, apc: 6, truck: 9, fuel: 7 };
@@ -267,9 +270,31 @@ var PA;
             }
             return { mode, targets: [], hoops };
         }
+        if (mode === 'drone')
+            return { mode, targets: [], hoops: droneCourse() };
         return { mode, targets: spawnTargets(rand, 260, 10), hoops: [] };
     }
     PA.makeMission = makeMission;
+    // The drone race: a closed loop of gates over open fields, about 700 m round, low and high.
+    // Gate 0 is just ahead of the start pad, which is at (0, 0) facing north.
+    PA.DRONE_GATES = 14;
+    function droneCourse() {
+        const pts = [];
+        for (let i = 0; i < PA.DRONE_GATES; i++) {
+            const a = (i / PA.DRONE_GATES) * Math.PI * 2;
+            const R = 100 + 28 * Math.sin(a * 3 + 0.6);
+            // A loop that starts heading north from the pad and comes back round to it.
+            const X = -Math.cos(a) * R * 1.25 + 125;
+            const Z = Math.sin(a) * R + 40;
+            const h = 3 + 4 * (1 + Math.sin(a * 2)) + (i % 4 === 2 ? 4 : 0);
+            pts.push([X, Z, h]);
+        }
+        return pts.map((p, i) => {
+            const prev = pts[(i + PA.DRONE_GATES - 1) % PA.DRONE_GATES], next = pts[(i + 1) % PA.DRONE_GATES];
+            return { X: p[0], Z: p[1], h: groundAt(p[0], p[1]) + p[2], r: 3.2, passed: false, yaw: Math.atan2(next[0] - prev[0], next[1] - prev[1]) };
+        });
+    }
+    PA.droneCourse = droneCourse;
 })(PA || (PA = {}));
 // Voxel models and sprite stacking.
 //
@@ -959,10 +984,60 @@ var PA;
         v.paint((x, y, z, c) => pick([0x6cbf5c, 0x5aae52, 0x86cf6c], x, y, z));
         return v;
     }
+    // A quadcopter seen from above: a body in the middle, four arms in an X, a motor and a
+    // spinning-blur rotor disc at each tip, and a camera or light at the front (y = 0 side).
+    //   n: grid size; size: metres per voxel; long: arms longer front to back (a camera drone's)
+    function quad(n, size, body, arm, prop, accent, long = 1, gimbal = false, lights = true) {
+        const v = new PA.Voxels(n, n, 6, size);
+        const c = (n - 1) / 2;
+        const reach = c - 2.2;
+        // Arms in an X.
+        for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+            for (let t = 0; t <= 1; t += 0.04) {
+                const x = Math.round(c + sx * reach * t), y = Math.round(c + sy * reach * long * t);
+                v.set(x, y, 2, arm);
+                v.set(x + (sx > 0 ? -1 : 1), y, 2, arm);
+            }
+            // Motor and rotor disc.
+            const mx = c + sx * reach, my = c + sy * reach * long;
+            v.ellipsoid(mx, my, 2.5, 0.9, 0.9, 1.2, 0x2b2f36);
+            const rr = Math.max(2, n * 0.17);
+            for (let dx = -rr; dx <= rr; dx++) {
+                for (let dy = -rr; dy <= rr; dy++) {
+                    const d = Math.hypot(dx, dy);
+                    if (d <= rr && d > 0.8)
+                        v.set(Math.round(mx + dx), Math.round(my + dy), 4, d > rr - 1 ? accent : prop);
+                }
+            }
+        }
+        // Body, with a camera or light at the front.
+        v.ellipsoid(c, c, 2.5, n * 0.14, n * 0.2 * long, 1.6, body);
+        v.box(Math.round(c - 1), Math.round(c - n * 0.2 * long) - 1, 1, Math.round(c + 1), Math.round(c - n * 0.2 * long) + 1, 3, gimbal ? 0x1b1e24 : accent);
+        if (gimbal)
+            v.ellipsoid(c, c - n * 0.2 * long - 1, 1, 1.2, 1.2, 1.2, 0x3a3f48);
+        if (lights) {
+            v.set(Math.round(c - reach), Math.round(c - reach * long), 1, 0x55e07a);
+            v.set(Math.round(c + reach), Math.round(c - reach * long), 1, 0xff5a5a);
+        }
+        return v;
+    }
+    // A military quad: bigger and darker, with a sensor ball under the nose and a long body.
+    function militaryDrone() {
+        const v = quad(26, 0.05, 0x5b6450, 0x474e3f, 0x3a3f36, 0x6d775f, 1.1, true, false);
+        v.box(11, 9, 3, 15, 17, 4, 0x6a735d); // a payload box on the back
+        return v;
+    }
     // Every model by name. City towers and trees have several versions.
     PA.MODEL_BUILDERS = {
         plane: a10,
         glider,
+        drone_hobby: () => quad(18, 0.012, 0xffffff, 0xd9dde3, 0xbfe3ff, 0x6cc4ff),
+        drone_camera: () => quad(22, 0.018, 0x9aa1a8, 0x7d848c, 0xd8dde2, 0x5c6168, 1.15, true),
+        drone_racer: () => quad(20, 0.012, 0x22262e, 0x2f343c, 0xffd36b, 0xff6b4a),
+        drone_military: militaryDrone,
+        rival1: () => quad(20, 0.05, 0xf26b5b, 0x2f343c, 0xffd7cf, 0xc04434),
+        rival2: () => quad(20, 0.05, 0x4f8fe0, 0x2f343c, 0xd3e5ff, 0x2e5d9e),
+        rival3: () => quad(20, 0.05, 0xf4c84a, 0x2f343c, 0xfff1c2, 0xc9971f),
         fighter: () => fighter(0xc4515a, 0x8e3640, 0x2f3b4a),
         ally: () => fighter(0x4f8fe0, 0x2e5d9e, 0xffd77a),
         jet: () => fighter(0xc9ced3, 0x9aa1a8, 0x3a4652),
@@ -1140,6 +1215,165 @@ var PA;
     PA.Aircraft = Aircraft;
     function clamp01(v) {
         return Math.max(0, Math.min(1, v));
+    }
+})(PA || (PA = {}));
+// Drone flight: a multirotor, not a wing. The rotors push straight up out of the frame; tilting
+// the frame turns part of that push sideways, which is how a drone moves. No lift from speed,
+// no stall. Four kinds, from a toy to a military drone, each with the kind of help it really has:
+//
+//   gps      the drone holds its place: the right stick asks for a speed, and letting go brakes
+//            to a hover (camera drones, military drones)
+//   althold  the drone holds its height: the left stick up and down asks to climb or sink, and
+//            the right stick tilts the frame (hobby drones with a barometer)
+//   none     nothing is held: the left stick is the throttle and stays where it is left, and the
+//            right stick tilts the frame (a racing drone in angle mode)
+//
+// Sizes and speeds are close to real ones (metres, seconds). Numbers live in DRONES.
+var PA;
+(function (PA) {
+    PA.DRONES = {
+        // A small toy quad: slow, tilts gently, holds its height.
+        hobby: { label: 'Hobby quad', assist: 'althold', maxTilt: 0.42, tiltRate: 6, twr: 2.2, maxSpeed: 8, accel: 4,
+            climb: 2.5, sink: 2, yawRate: 2.4, dragLin: 0.5, dragQuad: 0.02, raceSpeed: 6, size: '15 cm, about 8 m/s' },
+        // A folding camera drone (DJI-style): GPS holds it still; let go and it stops.
+        camera: { label: 'Camera drone (DJI-style)', assist: 'gps', maxTilt: 0.5, tiltRate: 5, twr: 2, maxSpeed: 15, accel: 6,
+            climb: 5, sink: 3, yawRate: 1.75, dragLin: 0.2, dragQuad: 0.01, raceSpeed: 11, size: '35 cm, about 15 m/s' },
+        // A 5-inch racing quad in angle mode: the throttle is yours, it is fast and twitchy.
+        racer: { label: 'Racing quad (FPV)', assist: 'none', maxTilt: 1.05, tiltRate: 12, twr: 4, maxSpeed: 38, accel: 30,
+            climb: 0, sink: 0, yawRate: 4, dragLin: 0.1, dragQuad: 0.022, raceSpeed: 20, size: '22 cm, about 38 m/s' },
+        // A military quadcopter drone: heavy, steady, GPS-held, slow to speed up and to turn.
+        military: { label: 'Military drone', assist: 'gps', maxTilt: 0.4, tiltRate: 2.5, twr: 1.8, maxSpeed: 26, accel: 3.5,
+            climb: 6, sink: 4, yawRate: 0.9, dragLin: 0.15, dragQuad: 0.008, raceSpeed: 16, size: '1.2 m, about 26 m/s' },
+    };
+    // Which pad axis does what, in each of the three common transmitter layouts.
+    //   Mode 2 (the most common): left = throttle and yaw, right = pitch and roll
+    //   Mode 1: left = pitch and yaw, right = throttle and roll
+    //   Mode 3: left = pitch and roll, right = throttle and yaw (Mode 2 the other way round)
+    function sticksFrom(p, mode) {
+        if (mode === 'mode1')
+            return { thr: p.ry, yaw: p.lx, pitch: p.ly, roll: p.rx };
+        if (mode === 'mode3')
+            return { thr: p.ry, yaw: p.rx, pitch: p.ly, roll: p.lx };
+        return { thr: p.ly, yaw: p.lx, pitch: p.ry, roll: p.rx };
+    }
+    PA.sticksFrom = sticksFrom;
+    // Which side the throttle is on (that pad's up and down does not spring back on the racer).
+    function throttleSide(mode) {
+        return mode === 'mode2' ? 'left' : 'right';
+    }
+    PA.throttleSide = throttleSide;
+    class Drone extends PA.Aircraft {
+        constructor(kind) {
+            super(true);
+            this.kind = kind;
+            this.vX = 0; // world velocity east
+            this.vZ = 0; // world velocity north
+            this.roll = 0; // frame tilt right (radians); drawn as the bank
+            this.crashed = false;
+            this.sticks = { throttle: 0, yaw: 0, pitch: 0, roll: 0 };
+        }
+        get spec() {
+            return PA.DRONES[this.kind];
+        }
+        get speed() {
+            return Math.hypot(this.vX, this.vZ, this.vy);
+        }
+        // On the ground, at rest, facing yaw.
+        place(X, Z, h, yaw) {
+            this.X = X;
+            this.Z = Z;
+            this.h = h;
+            this.yaw = yaw;
+            this.vX = this.vZ = this.vy = this.vx = 0;
+            this.pitch = this.roll = this.bank = 0;
+            this.crashed = false;
+            this.throttle = 0;
+        }
+        // Moves the drone by dt seconds. Returns true only for a crash (a hard hit on the ground).
+        step(dtIn, _pilot, groundAt) {
+            const dt = Math.min(dtIn, 1 / 30);
+            const s = this.spec;
+            const st = this.sticks;
+            const g = PA.GRAVITY;
+            this.yaw += st.yaw * s.yawRate * dt;
+            const sinY = Math.sin(this.yaw), cosY = Math.cos(this.yaw);
+            const ground = groundAt(this.X, this.Z);
+            const onGround = this.h <= ground + 0.01;
+            // Velocity in the drone's own frame: forward and right.
+            let fwd = this.vX * sinY + this.vZ * cosY;
+            let right = this.vX * cosY - this.vZ * sinY;
+            if (s.assist === 'gps') {
+                // The sticks ask for a speed; the drone tilts as much as it needs to get there.
+                const wantF = st.pitch * s.maxSpeed, wantR = st.roll * s.maxSpeed;
+                const aF = clampAbs((wantF - fwd) * 2, s.accel), aR = clampAbs((wantR - right) * 2, s.accel);
+                if (!onGround || st.throttle > 0) {
+                    fwd += aF * dt;
+                    right += aR * dt;
+                }
+                this.pitch += (-Math.atan2(aF, g) - this.pitch) * Math.min(1, s.tiltRate * dt);
+                this.roll += (Math.atan2(aR, g) - this.roll) * Math.min(1, s.tiltRate * dt);
+                const wantV = st.throttle >= 0 ? st.throttle * s.climb : st.throttle * s.sink;
+                this.vy += clampAbs((wantV - this.vy) * 3, 8) * dt;
+                this.throttle = Math.max(0, Math.min(1, (1 + this.vy / Math.max(1, s.climb) * 0.3) / s.twr));
+            }
+            else {
+                // The right stick tilts the frame; the tilt turns the push sideways.
+                this.pitch += (-st.pitch * s.maxTilt - this.pitch) * Math.min(1, s.tiltRate * dt);
+                this.roll += (st.roll * s.maxTilt - this.roll) * Math.min(1, s.tiltRate * dt);
+                let thrust; // per unit mass, along the frame's up
+                if (s.assist === 'althold') {
+                    // Push just enough to hold the height (or climb or sink as asked), tilted or not.
+                    const wantV = st.throttle >= 0 ? st.throttle * s.climb : st.throttle * s.sink;
+                    const needUp = g + clampAbs((wantV - this.vy) * 3, 6);
+                    thrust = Math.min(s.twr * g, needUp / Math.max(0.3, Math.cos(this.pitch) * Math.cos(this.roll)));
+                    this.throttle = thrust / (s.twr * g);
+                }
+                else {
+                    this.throttle = Math.max(0, Math.min(1, st.throttle));
+                    thrust = this.throttle * s.twr * g;
+                }
+                const aF = thrust * Math.sin(-this.pitch) * Math.cos(this.roll);
+                const aR = thrust * Math.sin(this.roll);
+                const aUp = thrust * Math.cos(this.pitch) * Math.cos(this.roll) - g;
+                fwd += aF * dt;
+                right += aR * dt;
+                this.vy += aUp * dt;
+            }
+            // Air drag on every direction of motion.
+            const v = Math.hypot(fwd, right, this.vy);
+            const drag = s.dragLin + s.dragQuad * v;
+            fwd -= fwd * drag * dt;
+            right -= right * drag * dt;
+            if (s.assist === 'none')
+                this.vy -= this.vy * drag * dt;
+            this.vX = fwd * sinY + right * cosY;
+            this.vZ = fwd * cosY - right * sinY;
+            this.X += this.vX * dt;
+            this.Z += this.vZ * dt;
+            this.h += this.vy * dt;
+            this.vx = fwd; // forward speed, for the parts of the game that read it
+            this.bank = this.roll;
+            this.alpha = 0;
+            this.stalled = false;
+            const gnd = groundAt(this.X, this.Z);
+            if (this.h <= gnd) {
+                const hard = this.vy < -6 || Math.hypot(this.vX, this.vZ) > 12;
+                this.h = gnd;
+                if (hard) {
+                    this.crashed = true;
+                    return true;
+                }
+                // A soft landing: it sits on its feet and slides to a stop.
+                this.vy = Math.max(0, this.vy);
+                this.vX *= Math.max(0, 1 - 6 * dt);
+                this.vZ *= Math.max(0, 1 - 6 * dt);
+            }
+            return false;
+        }
+    }
+    PA.Drone = Drone;
+    function clampAbs(v, m) {
+        return Math.max(-m, Math.min(m, v));
     }
 })(PA || (PA = {}));
 // Sound made in the page with the Web Audio API. No sound files.
@@ -1577,6 +1811,13 @@ var PA;
 // warns of them, and a tight turn or chaff can break them off.
 var PA;
 (function (PA) {
+    const DRONE_LAPS = 2;
+    const DRONE_CRASH_PENALTY = 3;
+    const RIVALS = [
+        { name: 'Swift', kind: 'rival1', pace: 0.88 },
+        { name: 'Comet', kind: 'rival2', pace: 0.97 },
+        { name: 'Pixel', kind: 'rival3', pace: 1.06 },
+    ];
     const WRECK_LIFE = 50; // seconds a wreck burns and smokes
     PA.MISSILE_MAX = 6;
     PA.AMMO_MAX = 240;
@@ -1678,6 +1919,9 @@ var PA;
             this.held = { fire: false, boost: false, missile: false };
             this.axes = { yaw: 0, pitch: 0 };
             this.throttleSet = CRUISE_THROTTLE; // the throttle lever, used when the flight helper is off
+            this.pads = { lx: 0, ly: 0, rx: 0, ry: 0 }; // drone flight: the two sticks
+            this.race = null;
+            this.rivals = [];
             this.onSound = () => { };
             this.rand = PA.random(1);
             this.newFlight(Math.floor(Math.random() * 100000));
@@ -1692,8 +1936,13 @@ var PA;
             this.seed = seed;
             this.mission = PA.makeMission(this.settings.mode, seed);
             this.rand = PA.random(seed + 7);
-            this.plane = new PA.Aircraft(this.settings.mode === 'jet');
-            if (this.settings.mode === 'glider') {
+            this.plane = this.settings.mode === 'drone' ? new PA.Drone(this.settings.droneKind || 'camera') : new PA.Aircraft(this.settings.mode === 'jet');
+            this.race = null;
+            this.rivals = [];
+            if (this.settings.mode === 'drone') {
+                this.startRace();
+            }
+            else if (this.settings.mode === 'glider') {
                 this.plane.start(0, 0, 90, 40, 0.08, 0, 0);
             }
             else {
@@ -1782,6 +2031,10 @@ var PA;
             }
             if (this.phase !== 'flying')
                 return;
+            if (this.settings.mode === 'drone') {
+                this.updateDrone(dt);
+                return;
+            }
             this.time += dt;
             const jet = this.settings.mode === 'jet';
             const pilot = {
@@ -1831,6 +2084,161 @@ var PA;
             else {
                 this.checkRings();
             }
+        }
+        // ---- Drone race ------------------------------------------------------------
+        get drone() {
+            return this.plane;
+        }
+        // Where a racer starts: on the ground behind gate 0, facing it. Rivals line up beside.
+        startPad(i) {
+            var _a;
+            const g0 = this.mission.hoops[0];
+            const yaw = (_a = g0.yaw) !== null && _a !== void 0 ? _a : 0;
+            const back = 30, side = (i - 1.5) * 3;
+            const X = g0.X - Math.sin(yaw) * back + Math.cos(yaw) * side;
+            const Z = g0.Z - Math.cos(yaw) * back - Math.sin(yaw) * side;
+            return [X, Z, yaw];
+        }
+        startRace() {
+            const [X, Z, yaw] = this.startPad(0);
+            this.drone.place(X, Z, PA.groundAt(X, Z), yaw);
+            this.race = { laps: DRONE_LAPS, lap: 1, next: 0, time: 0, countdown: 3, crashes: 0, place: RIVALS.length + 1, finished: false, results: [] };
+            const pace = this.drone.spec.raceSpeed;
+            RIVALS.forEach((r, i) => {
+                const [rx, rz, ry] = this.startPad(i + 1);
+                const t = { kind: r.kind, X: rx, Z: rz, h: PA.groundAt(rx, rz) + 0.15, alive: true, points: 0, hp: 1, cool: 0, vH: ry };
+                this.mission.targets.push(t);
+                this.rivals.push({ t, name: r.name, vmax: pace * r.pace, v: 0, dir: [Math.sin(ry), 0, Math.cos(ry)], lap: 1, next: 0, done: false });
+            });
+        }
+        updateDrone(dt) {
+            var _a;
+            const race = this.race;
+            const d = this.drone;
+            const sp = d.spec;
+            const raw = PA.sticksFrom(this.pads, this.settings.stickMode || 'mode2');
+            if (race.countdown > 0) {
+                race.countdown -= dt;
+                if (race.countdown <= 0)
+                    this.onSound('chime');
+                return;
+            }
+            this.time += dt;
+            race.time += dt;
+            d.sticks = {
+                // The racer's throttle is a position (bottom = off); the others spring to the middle.
+                throttle: sp.assist === 'none' ? (raw.thr + 1) / 2 : raw.thr,
+                yaw: raw.yaw, pitch: raw.pitch, roll: raw.roll,
+            };
+            if (d.step(dt, { pitch: 0, yaw: 0, throttle: 0 }, PA.groundAt)) {
+                // A crash: back over the last gate passed, with a time penalty.
+                race.crashes++;
+                race.time += DRONE_CRASH_PENALTY;
+                this.explode(d.X, d.h, d.Z, 6);
+                this.onSound('thud');
+                const hs = this.mission.hoops;
+                const last = hs[(race.next + hs.length - 1) % hs.length];
+                if (race.next === 0 && race.lap === 1) {
+                    const [X, Z, yaw] = this.startPad(0);
+                    d.place(X, Z, PA.groundAt(X, Z), yaw);
+                }
+                else {
+                    d.place(last.X, last.Z, last.h, (_a = last.yaw) !== null && _a !== void 0 ? _a : d.yaw);
+                }
+            }
+            this.checkGate();
+            this.updateRivals(dt);
+            this.updatePlace();
+        }
+        // Gates count only in order. The next one is lit; a lap is all of them.
+        checkGate() {
+            const race = this.race;
+            if (race.finished)
+                return;
+            const hs = this.mission.hoops;
+            const gate = hs[race.next];
+            const p = this.plane;
+            if (Math.hypot(p.X - gate.X, p.h - gate.h, p.Z - gate.Z) > gate.r)
+                return;
+            gate.passed = true;
+            this.hoopsPassed++;
+            this.onSound('chime');
+            race.next++;
+            if (race.next >= hs.length) {
+                race.next = 0;
+                race.lap++;
+                for (const h of hs)
+                    h.passed = false;
+                if (race.lap > race.laps) {
+                    race.finished = true;
+                    race.results.push({ name: 'You', time: race.time });
+                    race.place = race.results.length;
+                    this.phase = 'landed';
+                }
+            }
+        }
+        // Rivals fly the gates in order: they aim between the next gate and the one after,
+        // speed up on the straights and slow for the bends.
+        updateRivals(dt) {
+            var _a, _b, _c;
+            const hs = this.mission.hoops;
+            const race = this.race;
+            for (const r of this.rivals) {
+                if (r.done) {
+                    r.v = Math.max(0, r.v - 6 * dt);
+                }
+                const a = hs[r.next], b = hs[(r.next + 1) % hs.length];
+                const t = r.t;
+                const da = Math.hypot(a.X - t.X, a.h - ((_a = t.h) !== null && _a !== void 0 ? _a : 0), a.Z - t.Z);
+                const k = Math.max(0, Math.min(0.5, 1 - da / 25)) * 0.6;
+                const ax = a.X + (b.X - a.X) * k, ah = a.h + (b.h - a.h) * k, az = a.Z + (b.Z - a.Z) * k;
+                let dx = ax - t.X, dy = ah - ((_b = t.h) !== null && _b !== void 0 ? _b : 0), dz = az - t.Z;
+                const dl = Math.hypot(dx, dy, dz) || 1;
+                dx /= dl;
+                dy /= dl;
+                dz /= dl;
+                const bend = r.dir[0] * dx + r.dir[1] * dy + r.dir[2] * dz;
+                const want = r.done ? 0 : r.vmax * (0.55 + 0.45 * Math.max(0, bend));
+                r.v += Math.max(-8 * dt, Math.min(5 * dt, want - r.v));
+                const turn = Math.min(1, 3.5 * dt);
+                r.dir = [r.dir[0] + (dx - r.dir[0]) * turn, r.dir[1] + (dy - r.dir[1]) * turn, r.dir[2] + (dz - r.dir[2]) * turn];
+                const n = Math.hypot(r.dir[0], r.dir[1], r.dir[2]) || 1;
+                r.dir = [r.dir[0] / n, r.dir[1] / n, r.dir[2] / n];
+                t.X += r.dir[0] * r.v * dt;
+                t.Z += r.dir[2] * r.v * dt;
+                t.h = Math.max(PA.groundAt(t.X, t.Z) + 0.15, ((_c = t.h) !== null && _c !== void 0 ? _c : 0) + r.dir[1] * r.v * dt);
+                t.vH = Math.atan2(r.dir[0], r.dir[2]);
+                if (!r.done && da < a.r) {
+                    r.next++;
+                    if (r.next >= hs.length) {
+                        r.next = 0;
+                        r.lap++;
+                        if (r.lap > race.laps) {
+                            r.done = true;
+                            race.results.push({ name: r.name, time: race.time });
+                        }
+                    }
+                }
+            }
+        }
+        // The place: how many racers are further round the course.
+        updatePlace() {
+            var _a;
+            const race = this.race;
+            if (race.finished)
+                return;
+            const hs = this.mission.hoops;
+            const progress = (lap, next, X, h, Z) => {
+                const g = hs[next];
+                return (lap - 1) * hs.length + next - Math.min(0.99, Math.hypot(g.X - X, g.h - h, g.Z - Z) / 200);
+            };
+            const me = progress(race.lap, race.next, this.plane.X, this.plane.h, this.plane.Z);
+            let ahead = 0;
+            for (const r of this.rivals) {
+                if (r.done || progress(r.lap, r.next, r.t.X, (_a = r.t.h) !== null && _a !== void 0 ? _a : 0, r.t.Z) > me)
+                    ahead++;
+            }
+            race.place = ahead + 1;
         }
         applyFloor(pilot) {
             const p = this.plane;
@@ -4368,7 +4776,7 @@ var PA;
         renderErrors();
     }
     function onSeg(key, value) {
-        if (key === 'mode' || key === 'control' || key === 'view' || key === 'difficulty') {
+        if (key === 'mode' || key === 'control' || key === 'view' || key === 'difficulty' || key === 'droneKind' || key === 'stickMode') {
             settings[key] = value;
         }
         else {
@@ -4378,7 +4786,7 @@ var PA;
             applySound();
         saveSettings();
         renderSettings();
-        if (key === 'mode')
+        if (key === 'mode' || key === 'droneKind')
             restart();
         if (key === 'control') {
             dragAxes = null;

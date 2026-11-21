@@ -1,6 +1,6 @@
 // The land and the sea, and what is on them. Same seed, same start.
 namespace PA {
-  export type Mode = 'jet' | 'glider';
+  export type Mode = 'jet' | 'glider' | 'drone';
 
   // A seeded random number generator (mulberry32). Returns 0 up to 1.
   export function random(seed: number): () => number {
@@ -131,6 +131,9 @@ namespace PA {
     rail:       { r: 2.5, height: 2.5, hp: 1, points: 40, group: 'rail' },
     fighter:    { r: 4.5, height: 3.0, hp: 1, points: 200, group: 'air', gun: { range: 380, cool: 2.6, speed: 330, type: 'mg', dmg: 6, elev: 1.6, spread: 0.03 } },
     ally:       { r: 3.0, height: 2.5, hp: 1, points: -300, group: 'air' },
+    rival1:     { r: 0.5, height: 0.3, hp: 1, points: 0, group: 'air' },
+    rival2:     { r: 0.5, height: 0.3, hp: 1, points: 0, group: 'air' },
+    rival3:     { r: 0.5, height: 0.3, hp: 1, points: 0, group: 'air' },
   };
 
   // Which kinds drive along the road (and how fast, metres per second).
@@ -169,6 +172,7 @@ namespace PA {
     h: number;
     r: number;
     passed: boolean;
+    yaw?: number;        // drone gates face along the course (radians); glider rings face the plane
   }
 
   export interface Mission {
@@ -269,6 +273,27 @@ namespace PA {
       }
       return { mode, targets: [], hoops };
     }
+    if (mode === 'drone') return { mode, targets: [], hoops: droneCourse() };
     return { mode, targets: spawnTargets(rand, 260, 10), hoops: [] };
+  }
+
+  // The drone race: a closed loop of gates over open fields, about 700 m round, low and high.
+  // Gate 0 is just ahead of the start pad, which is at (0, 0) facing north.
+  export const DRONE_GATES = 14;
+  export function droneCourse(): Hoop[] {
+    const pts: [number, number, number][] = [];
+    for (let i = 0; i < DRONE_GATES; i++) {
+      const a = (i / DRONE_GATES) * Math.PI * 2;
+      const R = 100 + 28 * Math.sin(a * 3 + 0.6);
+      // A loop that starts heading north from the pad and comes back round to it.
+      const X = -Math.cos(a) * R * 1.25 + 125;
+      const Z = Math.sin(a) * R + 40;
+      const h = 3 + 4 * (1 + Math.sin(a * 2)) + (i % 4 === 2 ? 4 : 0);
+      pts.push([X, Z, h]);
+    }
+    return pts.map((p, i) => {
+      const prev = pts[(i + DRONE_GATES - 1) % DRONE_GATES], next = pts[(i + 1) % DRONE_GATES];
+      return { X: p[0], Z: p[1], h: groundAt(p[0], p[1]) + p[2], r: 3.2, passed: false, yaw: Math.atan2(next[0] - prev[0], next[1] - prev[1]) };
+    });
   }
 }

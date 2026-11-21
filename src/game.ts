@@ -26,8 +26,42 @@ namespace PA {
     autoReload: number;   // 1 = missiles come back over time
     enemyWave: number;    // enemy fighters per wave, one wave about every minute (0-6)
     allies: number;       // allied fighters that fly around (0-4)
+    droneKind?: DroneKind;   // drone flight: which drone
+    stickMode?: StickMode;   // drone flight: which transmitter layout (Mode 2, 1 or 3)
     showErrors: number;
   }
+
+  // The drone race: two laps of the gates, against three rival racers.
+  export interface Race {
+    laps: number;
+    lap: number;          // 1, 2 …
+    next: number;         // the next gate to fly through
+    time: number;         // seconds since the start (crashes add a penalty)
+    countdown: number;    // seconds before the start
+    crashes: number;
+    place: number;        // 1 = first, counting rivals ahead
+    finished: boolean;
+    results: { name: string; time: number }[];   // finishers in order, the player included
+  }
+
+  export interface Rival {
+    t: Target;            // drawn as a target (kind rival1-3), never shot at
+    name: string;
+    vmax: number;
+    v: number;
+    dir: [number, number, number];
+    lap: number;
+    next: number;
+    done: boolean;
+  }
+
+  const DRONE_LAPS = 2;
+  const DRONE_CRASH_PENALTY = 3;
+  const RIVALS = [
+    { name: 'Swift', kind: 'rival1', pace: 0.88 },
+    { name: 'Comet', kind: 'rival2', pace: 0.97 },
+    { name: 'Pixel', kind: 'rival3', pace: 1.06 },
+  ];
 
   export interface Held {
     fire: boolean;
@@ -217,6 +251,9 @@ namespace PA {
     held: Held = { fire: false, boost: false, missile: false };
     axes: Axes = { yaw: 0, pitch: 0 };
     throttleSet = CRUISE_THROTTLE;   // the throttle lever, used when the flight helper is off
+    pads: Pads = { lx: 0, ly: 0, rx: 0, ry: 0 };   // drone flight: the two sticks
+    race: Race | null = null;
+    rivals: Rival[] = [];
     onSound: (name: SoundName) => void = () => {};
     private rand = random(1);
 
@@ -235,8 +272,12 @@ namespace PA {
       this.seed = seed;
       this.mission = makeMission(this.settings.mode, seed);
       this.rand = random(seed + 7);
-      this.plane = new Aircraft(this.settings.mode === 'jet');
-      if (this.settings.mode === 'glider') {
+      this.plane = this.settings.mode === 'drone' ? new Drone(this.settings.droneKind || 'camera') : new Aircraft(this.settings.mode === 'jet');
+      this.race = null;
+      this.rivals = [];
+      if (this.settings.mode === 'drone') {
+        this.startRace();
+      } else if (this.settings.mode === 'glider') {
         this.plane.start(0, 0, 90, 40, 0.08, 0, 0);
       } else {
         this.plane.start(0, 0, groundAt(0, 0) + 10, 50, 0.05, 0, CRUISE_THROTTLE);
@@ -321,6 +362,10 @@ namespace PA {
       }
       if (this.phase !== 'flying') return;
 
+      if (this.settings.mode === 'drone') {
+        this.updateDrone(dt);
+        return;
+      }
       this.time += dt;
       const jet = this.settings.mode === 'jet';
       const pilot: Pilot = {
@@ -368,6 +413,156 @@ namespace PA {
       } else {
         this.checkRings();
       }
+    }
+
+    // ---- Drone race ------------------------------------------------------------
+
+    get drone(): Drone {
+      return this.plane as Drone;
+    }
+
+    // Where a racer starts: on the ground behind gate 0, facing it. Rivals line up beside.
+    private startPad(i: number): [number, number, number] {
+      const g0 = this.mission.hoops[0];
+      const yaw = g0.yaw ?? 0;
+      const back = 30, side = (i - 1.5) * 3;
+      const X = g0.X - Math.sin(yaw) * back + Math.cos(yaw) * side;
+      const Z = g0.Z - Math.cos(yaw) * back - Math.sin(yaw) * side;
+      return [X, Z, yaw];
+    }
+
+    private startRace(): void {
+      const [X, Z, yaw] = this.startPad(0);
+      this.drone.place(X, Z, groundAt(X, Z), yaw);
+      this.race = { laps: DRONE_LAPS, lap: 1, next: 0, time: 0, countdown: 3, crashes: 0, place: RIVALS.length + 1, finished: false, results: [] };
+      const pace = this.drone.spec.raceSpeed;
+      RIVALS.forEach((r, i) => {
+        const [rx, rz, ry] = this.startPad(i + 1);
+        const t: Target = { kind: r.kind, X: rx, Z: rz, h: groundAt(rx, rz) + 0.15, alive: true, points: 0, hp: 1, cool: 0, vH: ry };
+        this.mission.targets.push(t);
+        this.rivals.push({ t, name: r.name, vmax: pace * r.pace, v: 0, dir: [Math.sin(ry), 0, Math.cos(ry)], lap: 1, next: 0, done: false });
+      });
+    }
+
+    private updateDrone(dt: number): void {
+      const race = this.race!;
+      const d = this.drone;
+      const sp = d.spec;
+      const raw = sticksFrom(this.pads, this.settings.stickMode || 'mode2');
+      if (race.countdown > 0) {
+        race.countdown -= dt;
+        if (race.countdown <= 0) this.onSound('chime');
+        return;
+      }
+      this.time += dt;
+      race.time += dt;
+      d.sticks = {
+        // The racer's throttle is a position (bottom = off); the others spring to the middle.
+        throttle: sp.assist === 'none' ? (raw.thr + 1) / 2 : raw.thr,
+        yaw: raw.yaw, pitch: raw.pitch, roll: raw.roll,
+      };
+      if (d.step(dt, { pitch: 0, yaw: 0, throttle: 0 }, groundAt)) {
+        // A crash: back over the last gate passed, with a time penalty.
+        race.crashes++;
+        race.time += DRONE_CRASH_PENALTY;
+        this.explode(d.X, d.h, d.Z, 6);
+        this.onSound('thud');
+        const hs = this.mission.hoops;
+        const last = hs[(race.next + hs.length - 1) % hs.length];
+        if (race.next === 0 && race.lap === 1) {
+          const [X, Z, yaw] = this.startPad(0);
+          d.place(X, Z, groundAt(X, Z), yaw);
+        } else {
+          d.place(last.X, last.Z, last.h, last.yaw ?? d.yaw);
+        }
+      }
+      this.checkGate();
+      this.updateRivals(dt);
+      this.updatePlace();
+    }
+
+    // Gates count only in order. The next one is lit; a lap is all of them.
+    private checkGate(): void {
+      const race = this.race!;
+      if (race.finished) return;
+      const hs = this.mission.hoops;
+      const gate = hs[race.next];
+      const p = this.plane;
+      if (Math.hypot(p.X - gate.X, p.h - gate.h, p.Z - gate.Z) > gate.r) return;
+      gate.passed = true;
+      this.hoopsPassed++;
+      this.onSound('chime');
+      race.next++;
+      if (race.next >= hs.length) {
+        race.next = 0;
+        race.lap++;
+        for (const h of hs) h.passed = false;
+        if (race.lap > race.laps) {
+          race.finished = true;
+          race.results.push({ name: 'You', time: race.time });
+          race.place = race.results.length;
+          this.phase = 'landed';
+        }
+      }
+    }
+
+    // Rivals fly the gates in order: they aim between the next gate and the one after,
+    // speed up on the straights and slow for the bends.
+    private updateRivals(dt: number): void {
+      const hs = this.mission.hoops;
+      const race = this.race!;
+      for (const r of this.rivals) {
+        if (r.done) {
+          r.v = Math.max(0, r.v - 6 * dt);
+        }
+        const a = hs[r.next], b = hs[(r.next + 1) % hs.length];
+        const t = r.t;
+        const da = Math.hypot(a.X - t.X, a.h - (t.h ?? 0), a.Z - t.Z);
+        const k = Math.max(0, Math.min(0.5, 1 - da / 25)) * 0.6;
+        const ax = a.X + (b.X - a.X) * k, ah = a.h + (b.h - a.h) * k, az = a.Z + (b.Z - a.Z) * k;
+        let dx = ax - t.X, dy = ah - (t.h ?? 0), dz = az - t.Z;
+        const dl = Math.hypot(dx, dy, dz) || 1;
+        dx /= dl; dy /= dl; dz /= dl;
+        const bend = r.dir[0] * dx + r.dir[1] * dy + r.dir[2] * dz;
+        const want = r.done ? 0 : r.vmax * (0.55 + 0.45 * Math.max(0, bend));
+        r.v += Math.max(-8 * dt, Math.min(5 * dt, want - r.v));
+        const turn = Math.min(1, 3.5 * dt);
+        r.dir = [r.dir[0] + (dx - r.dir[0]) * turn, r.dir[1] + (dy - r.dir[1]) * turn, r.dir[2] + (dz - r.dir[2]) * turn];
+        const n = Math.hypot(r.dir[0], r.dir[1], r.dir[2]) || 1;
+        r.dir = [r.dir[0] / n, r.dir[1] / n, r.dir[2] / n];
+        t.X += r.dir[0] * r.v * dt;
+        t.Z += r.dir[2] * r.v * dt;
+        t.h = Math.max(groundAt(t.X, t.Z) + 0.15, (t.h ?? 0) + r.dir[1] * r.v * dt);
+        t.vH = Math.atan2(r.dir[0], r.dir[2]);
+        if (!r.done && da < a.r) {
+          r.next++;
+          if (r.next >= hs.length) {
+            r.next = 0;
+            r.lap++;
+            if (r.lap > race.laps) {
+              r.done = true;
+              race.results.push({ name: r.name, time: race.time });
+            }
+          }
+        }
+      }
+    }
+
+    // The place: how many racers are further round the course.
+    private updatePlace(): void {
+      const race = this.race!;
+      if (race.finished) return;
+      const hs = this.mission.hoops;
+      const progress = (lap: number, next: number, X: number, h: number, Z: number) => {
+        const g = hs[next];
+        return (lap - 1) * hs.length + next - Math.min(0.99, Math.hypot(g.X - X, g.h - h, g.Z - Z) / 200);
+      };
+      const me = progress(race.lap, race.next, this.plane.X, this.plane.h, this.plane.Z);
+      let ahead = 0;
+      for (const r of this.rivals) {
+        if (r.done || progress(r.lap, r.next, r.t.X, r.t.h ?? 0, r.t.Z) > me) ahead++;
+      }
+      race.place = ahead + 1;
     }
 
     private applyFloor(pilot: Pilot): void {
