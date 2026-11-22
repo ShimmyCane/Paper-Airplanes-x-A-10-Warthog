@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Missions Mode Guide</title>
+<style>
+/* Layout: a sky band at the top, then a stack of plain panels, with the ten missions as a grid. */
+:root {
+  --sky-top: #ffd9c7;
+  --sky-bottom: #bfe6f2;
+  --ink: #2f2d3d;
+  --paper: #fffdfa;
+  --sun: #fff1b8;
+  --grass: #b9dea6;
+  --coral: #ff9e8a;
+  --blue: #3d8bff;
+  --bg: #f4f1ea;
+  --fg: #2f2d3d;
+  --muted: #5b586b;
+  --card: #fffdfa;
+  --line: #2f2d3d;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1d1c2b;
+    --fg: #f3efe6;
+    --muted: #c9c4d6;
+    --card: #2a2940;
+    --line: #f3efe6;
+    --sun: #5b5230;
+    --grass: #2f4a35;
+    --coral: #7a3d36;
+    --blue: #2c5fb0;
+    --sky-top: #3a2e3c;
+    --sky-bottom: #203a4a;
+    --paper: #2a2940;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1d1c2b;
+  --fg: #f3efe6;
+  --muted: #c9c4d6;
+  --card: #2a2940;
+  --line: #f3efe6;
+  --sun: #5b5230;
+  --grass: #2f4a35;
+  --coral: #7a3d36;
+  --blue: #2c5fb0;
+  --sky-top: #3a2e3c;
+  --sky-bottom: #203a4a;
+  --paper: #2a2940;
+  color-scheme: dark;
+}
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.55 "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+h1, h2, h3 { font-family: "Fredoka", "Nunito", system-ui, sans-serif; line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 6vw, 44px); }
+h2 { font-size: 24px; margin-bottom: 14px; }
+h3 { font-size: 18px; }
+p { margin: 0 0 10px; max-width: 65ch; }
+.muted { color: var(--muted); }
+.wrap { max-width: 980px; margin: 0 auto; }
+
+/* Sky band */
+.sky {
+  background: linear-gradient(180deg, var(--sky-top), var(--sky-bottom));
+  border-bottom: 3px solid var(--line);
+  padding-block: 40px 36px;
+  margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
+  padding-inline: max(16px, env(safe-area-inset-left, 0px));
+}
+.sky .lede { font-size: 18px; margin-top: 12px; }
+.tag {
+  display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  border: 2px solid var(--line); border-radius: 999px; padding: 2px 10px; background: var(--paper); color: var(--fg);
+}
+
+section { margin-top: 36px; }
+.panel {
+  background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 18px;
+  box-shadow: 0 4px 0 var(--line);
+}
+
+/* Four steps */
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.step .n {
+  display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  border: 2px solid var(--line); background: var(--sun); color: var(--fg); font-weight: 800; margin-bottom: 8px;
+}
+
+/* Missions grid */
+.missions { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.mission { display: flex; flex-direction: column; gap: 8px; }
+.mission header { display: flex; align-items: baseline; gap: 10px; }
+.mission .no {
+  flex: none; font-family: "Fredoka", sans-serif; font-weight: 600; font-size: 15px;
+  width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px;
+  border: 2px solid var(--line); background: var(--paper);
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font-size: 13px; font-weight: 700; border: 2px solid var(--line); border-radius: 999px; padding: 1px 9px;
+  background: var(--paper); color: var(--fg);
+}
+.chip.ground { background: var(--grass); }
+.chip.air { background: var(--coral); color: #2f2d3d; }
+.chip.ship { background: var(--blue); color: #ffffff; }
+.chip.return { background: var(--sun); color: #2f2d3d; }
+:root[data-theme="dark"] .chip.air, :root:not([data-theme="light"]) .chip.air { color: #fff3ee; }
+.mission .facts { font-size: 14px; color: var(--muted); margin: 0; }
+.mission .facts b { color: var(--fg); }
+
+/* Threat and tool lists */
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+dl { margin: 0; display: grid; gap: 12px; }
+dt { font-weight: 800; }
+dd { margin: 2px 0 0; color: var(--muted); }
+
+/* Scale of the setting */
+.dial { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 8px; }
+.dial span {
+  text-align: center; font-weight: 800; border: 2px solid var(--line); border-radius: 8px; padding: 6px 0; background: var(--paper);
+}
+.dial span.on { background: var(--sun); }
+.dial-label { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-top: 6px; }
+
+.loop { border-style: dashed; }
+footer { margin-top: 40px; font-size: 14px; color: var(--muted); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .panel { transition: transform .15s ease; }
+  .panel:hover { transform: translateY(-2px); }
+}
+:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<div class="sky">
+  <div class="wrap">
+    <span class="tag">A-10 jet · Missions mode</span>
+    <h1 style="margin-top:12px">Missions Mode: what to expect</h1>
+    <p class="lede">Ten missions in order. Each one has a goal, a start, and a set of fighters and guns. The first flight is a calm practice run, and the later ones are harder.</p>
+  </div>
+</div>
+
+<div class="wrap">
+
+<section aria-labelledby="how">
+  <h2 id="how">A mission, step by step</h2>
+  <div class="steps">
+    <div class="panel step">
+      <span class="n">1</span>
+      <h3>Read the card</h3>
+      <p class="muted">The mission name and a short brief show at the start. The top bar shows how many targets are left.</p>
+    </div>
+    <div class="panel step">
+      <span class="n">2</span>
+      <h3>Find the targets</h3>
+      <p class="muted">Arrows on the radar point to targets off the screen. Fly the arrow, then find the target.</p>
+    </div>
+    <div class="panel step">
+      <span class="n">3</span>
+      <h3>Survive the waves</h3>
+      <p class="muted">Fighters come in from ahead in waves. A warning tells you when a missile is locked on you.</p>
+    </div>
+    <div class="panel step">
+      <span class="n">4</span>
+      <h3>Finish and restock</h3>
+      <p class="muted">Reach the goal to earn 500 points. Ammo, missiles, chaff and hull are restored, and the next mission starts.</p>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="list">
+  <h2 id="list">The ten missions</h2>
+  <p class="muted">Fighter counts are for the default setting. A "return" start means you are already flying home, with fighters behind you.</p>
+  <div class="missions">
+
+    <article class="panel mission">
+      <header><span class="no">1</span><h3>Range Day</h3></header>
+      <div class="chips"><span class="chip ground">Destroy 3 ground targets</span><span class="chip">Takeoff</span></div>
+      <p class="facts">No fighters and no guns. Learn the controls.</p>
+    </article>
+
+    <article class="panel mission">
+      <header><span class="no">2</span><h3>First Contact</h3></header>
+      <div class="chips"><span class="chip ground">Destroy 4 ground targets</span><span class="chip">Takeoff</span></div>
+      <p class="facts">No guns. One fighter arrives about 90 seconds in, then one every 90 seconds.</p>
+    </article>
+
+    <article class="panel mission">
+      <header><span class="no">3</span><h3>Coast Watch</h3></header>
+      <div class="chips"><span class="chip ship">Sink 2 ships</span><span class="chip">Takeoff</span></div>
+      <p class="facts">Ships at sea and flak on the shore. The first fighter comes after about 100 seconds.</p>
+    </article>
+
+    <article class="panel mission">
+      <header><span class="no">4</span><h3>Armour Strike</h3></header>
+      <div class="chips"><span class="chip ground">Destroy 6 ground targets</span><span class="chip">Takeoff</span></div>
+      <p class="facts">Tanks drive the road, with guns and flak. A fighter comes after about 2 minutes.</p>
+    </article>
+
+    <article class="panel mission">
+      <header><span class="no">5</span><h3>Intercept</h3></header>
+      <div class="chips"><span class="chip air">Shoot down 3 fighters</span><span class="chip">Takeoff</span></div>
+      <p class="facts">Fighters come in from the first 30 seconds, in waves of 2 at the default setting.</p>
+    </article>
+
+    <article class="panel mission">
+      <header><span class="no">6</span><h3>Heading Home</h3></header>
+      <div class="chips"><span class="chip ground">Destroy 3 ground targets</span><span class="chip return">Return: under fire</span></div>
+      <p class="facts">You start 900 m north, flying home at 60 m/s with 60 hull. A fighter starts on your tail.</p>
+    </article>
+
+    <article class="panel mission">
+      <header><span class="no">7</span><h3>Town Watch</h3></header>
+      <div class="chips"><span class="chip ground">Destroy 5 ground targets</span><span class="chip">Takeoff</span></div>
+      <p class="facts">Town SAM sites fire missiles. Stay out of their range. Fighters come after about 2 minutes.</p>
+    </article>
+
+    <article class="panel mission">
+      <header><span class="no">8</span><h3>Air Superiority</h3></header>
+      <div class="chips"><span class="chip air">Shoot down 5 fighters</span><span class="chip">Takeoff</span></div>
+      <p class="facts">Bigger waves, guns and missiles both help. Waves of 2 come every 40 seconds.</p>
+    </article>
+
+    <article class="panel mission">
+      <header><span class="no">9</span><h3>Port Strike</h3></header>
+      <div class="chips"><span class="chip ship">Sink 3 ships</span><span class="chip">Takeoff</span></div>
+      <p class="facts">Harbour ships, with the shore guns awake. The first fighter comes after about a minute.</p>
+    </article>
+
+    <article class="panel mission">
+      <header><span class="no">10</span><h3>Last Light</h3></header>
+      <div class="chips"><span class="chip ground">Destroy 8 ground targets</span><span class="chip return">Return: under fire</span></div>
+      <p class="facts">Three fighters start behind you, at 900 m north with 60 hull. Then waves every 45 seconds.</p>
+    </article>
+
+  </div>
+</section>
+
+<section aria-labelledby="threats">
+  <h2 id="threats">What fights back</h2>
+  <div class="two">
+    <div class="panel">
+      <dl>
+        <div><dt>Enemy fighters</dt><dd>They fire guns and homing missiles. A warning tag shows the missile's distance. A hard turn or chaff can break the lock.</dd></div>
+        <div><dt>Your allies</dt><dd>They fly around their own patch and do not shoot. Hitting one costs points, and lost allies are replaced.</dd></div>
+      </dl>
+    </div>
+    <div class="panel">
+      <dl>
+        <div><dt>Guns on the ground</dt><dd>Tanks shoot with machine guns, and flak bursts up at you. SAM sites fire missiles. Only missions with guns have them, which is every mission from Coast Watch on, except Intercept and Heading Home.</dd></div>
+        <div><dt>Ships and route bases</dt><dd>Ships fire cannon, and defended bases with SAM and flak come up along the route. Both only appear in missions with guns.</dd></div>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="tools">
+  <h2 id="tools">Your tools</h2>
+  <div class="two">
+    <div class="panel">
+      <dl>
+        <div><dt>Throttle</dt><dd>The lever, left of the buttons, or R and F. It sets your top speed. At the default 60% you level off near 125 knots, and at full power about 150.</dd></div>
+        <div><dt>Flight helper</dt><dd>On by default. It keeps the nose short of a stall and adds power when you are slow. Turn it off in settings for real flying.</dd></div>
+      </dl>
+    </div>
+    <div class="panel">
+      <dl>
+        <div><dt>Guns and missiles</dt><dd>Hold the nose on a target until it locks. Missiles home on a locked target.</dd></div>
+        <div><dt>Chaff and reload</dt><dd>Chaff breaks a missile's lock for a few seconds. The ⚙️ reload restocks you, and can be used once every 45 seconds.</dd></div>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="difficulty">
+  <h2 id="difficulty">Difficulty and settings</h2>
+  <div class="two">
+    <div class="panel">
+      <h3>Felix (easy)</h3>
+      <p class="muted">The plane never goes down. Supplies are unlimited. Fighter waves are halved again.</p>
+    </div>
+    <div class="panel">
+      <h3>Normal</h3>
+      <p class="muted">Enough hits and the plane goes down. The mission restarts with supplies refilled.</p>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:14px">
+    <h3>Enemy fighters per wave</h3>
+    <p class="muted">The setting scales each mission's waves. The default is 1 (half). Set 0 for no fighters.</p>
+    <div class="dial" role="img" aria-label="Setting scale: 0 none, 1 half (default), 2 full, up to 6">
+      <span>0</span><span class="on">1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span>
+    </div>
+    <div class="dial-label"><span>none</span><span>half (default) · full at 2</span><span>max</span></div>
+  </div>
+</section>
+
+<section aria-labelledby="loop">
+  <h2 id="loop">After mission 10</h2>
+  <div class="panel loop">
+    <p>The list starts again. Each time round, every mission asks for one more target, and the waves get one fighter bigger. The missions stay in the same order, so Range Day comes back as a little harder version of itself.</p>
+  </div>
+</section>
+
+<footer>
+  <p>Numbers come from the game's mission table in version 0.22. Escort, carrier launches, team battles and bomber intercepts are planned for later.</p>
+</footer>
+
+</div>
+</body>
+</html>
