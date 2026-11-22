@@ -64,3 +64,10 @@
 - **A default that hides a control is a bug, not a setting.** The throttle only showed with the helper off, and the helper ignored it. Make the control always show and let the helper add to it.
 - **A test that counts live objects can see zero by chance.** A fighter spawned and shot down by an ally before the check ran. Watch over the whole window instead.
 - **Keep the mission data in one table.** Goal, start, guns and waves in `MISSIONS` let the HUD, radar and spawner read the same rules.
+
+## 2026-11-22 (round 15, convo v0.22)
+
+- **A limit that is only on the angle of attack lets the nose go over the top.** Clamp the attitude itself. Past vertical, thrust points backward.
+- **Check which mode runs before blaming the physics.** The 100-knot "wall" was the default lever (36%), not the drag model.
+- **A rule set on one list must reach every spawner.** Route bases and tank guns ignored the mission's guns setting. Gate the firing, not just the spawn.
+- **Tests that set up the thing under test must use the mode it needs.** After calm missions became the default, gun tests needed a gun mission.

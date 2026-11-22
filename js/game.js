@@ -2,7 +2,7 @@
 // Shared numbers for the whole game. Change a number here, rebuild, reload.
 var PA;
 (function (PA) {
-    PA.VERSION = '0.21 (2026-11-22: 10 missions, clear start, fewer fighters, nose-up fix, throttle always in the jet)';
+    PA.VERSION = '0.22 (2026-11-22: calm missions silent, no backward flight, default lever 60%, pitch limit)';
     // Internal resolution. The canvas is small on purpose: every pixel is a
     // "pixel-art pixel", and the page scales it up with no smoothing.
     PA.W = 480;
@@ -1145,6 +1145,7 @@ var PA;
         stall: 0.26, // radians, about 15 degrees
         maxThrust: 6,
         pitchRate: 1.1, // radians per second when the nose is moved
+        maxPitch: 1.2, // radians (about 69 degrees): the nose cannot go over the top, or thrust would push backward
         turnRate: 1.0, // radians per second of yaw at full steering
         bankMax: 0.6, // radians of bank at full steering (the wings tilt into the turn)
         stability: 0.5, // the tail pulls the nose back toward the flight path
@@ -1193,6 +1194,7 @@ var PA;
         step(dtIn, pilot, groundAt) {
             const dt = Math.min(dtIn, 1 / 30);
             this.pitch += pilot.pitch * PA.AIR.pitchRate * dt;
+            this.pitch = Math.max(-PA.AIR.maxPitch, Math.min(PA.AIR.maxPitch, this.pitch));
             this.yaw += pilot.yaw * PA.AIR.turnRate * dt;
             this.bank += (pilot.yaw * PA.AIR.bankMax - this.bank) * Math.min(1, dt * 4);
             const v = this.speed;
@@ -1872,7 +1874,7 @@ var PA;
     const AMMO_RECHARGE = 4; // rounds per second, always coming back
     const RESUPPLY_COOL = 45; // seconds between reloads from ⚙️
     const SHOT_SPEED = 260;
-    const CRUISE_THROTTLE = 0.36; // about 100 knots on the display: a gentler cruise
+    const CRUISE_THROTTLE = 0.6; // the default lever: about 130 knots level (it was 36%, which capped flight near 100)
     const BULLET_LIFE = 1.6;
     const SHELL_LIFE = 4;
     const BLINK_SECONDS = 1.2;
@@ -3023,6 +3025,9 @@ var PA;
             this.shots = keep;
         }
         updateGunners(dt) {
+            // Calm missions have no guns on the ground or at sea: nothing fires at the plane.
+            if (!this.missionSpec.guns)
+                return;
             const p = this.plane;
             for (const t of this.mission.targets) {
                 const gun = PA.KINDS[t.kind].gun;
@@ -3090,7 +3095,7 @@ var PA;
                 m.targets.push(...PA.spawnTargets(this.rand, this.plane.Z + 420, 6, this.missionSpec.guns));
             }
             // Bases come up ahead of the plane, one every BASE_SPACING metres of route.
-            while (this.plane.Z + 900 > this.nextBaseZ) {
+            while (this.missionSpec.guns && this.plane.Z + 900 > this.nextBaseZ) {
                 this.spawnBase(this.nextBaseZ);
                 this.nextBaseZ += BASE_SPACING;
             }
