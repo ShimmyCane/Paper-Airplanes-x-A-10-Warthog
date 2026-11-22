@@ -159,7 +159,7 @@ namespace PA {
   const AMMO_RECHARGE = 4;               // rounds per second, always coming back
   const RESUPPLY_COOL = 45;              // seconds between reloads from ⚙️
   const SHOT_SPEED = 260;
-  const CRUISE_THROTTLE = 0.36;   // about 100 knots on the display: a gentler cruise
+  const CRUISE_THROTTLE = 0.6;    // the default lever: about 130 knots level (it was 36%, which capped flight near 100)
   const BULLET_LIFE = 1.6;
   const SHELL_LIFE = 4;
   const BLINK_SECONDS = 1.2;
@@ -1262,6 +1262,8 @@ namespace PA {
     }
 
     private updateGunners(dt: number): void {
+      // Calm missions have no guns on the ground or at sea: nothing fires at the plane.
+      if (!this.missionSpec.guns) return;
       const p = this.plane;
       for (const t of this.mission.targets) {
         const gun = KINDS[t.kind].gun;
@@ -1322,7 +1324,7 @@ namespace PA {
         m.targets.push(...spawnTargets(this.rand, this.plane.Z + 420, 6, this.missionSpec.guns));
       }
       // Bases come up ahead of the plane, one every BASE_SPACING metres of route.
-      while (this.plane.Z + 900 > this.nextBaseZ) {
+      while (this.missionSpec.guns && this.plane.Z + 900 > this.nextBaseZ) {
         this.spawnBase(this.nextBaseZ);
         this.nextBaseZ += BASE_SPACING;
       }

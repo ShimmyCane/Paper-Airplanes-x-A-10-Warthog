@@ -21,6 +21,7 @@ namespace PA {
     stall: 0.26,      // radians, about 15 degrees
     maxThrust: 6,
     pitchRate: 1.1,   // radians per second when the nose is moved
+    maxPitch: 1.2,    // radians (about 69 degrees): the nose cannot go over the top, or thrust would push backward
     turnRate: 1.0,    // radians per second of yaw at full steering
     bankMax: 0.6,     // radians of bank at full steering (the wings tilt into the turn)
     stability: 0.5,   // the tail pulls the nose back toward the flight path
@@ -80,6 +81,7 @@ namespace PA {
     step(dtIn: number, pilot: Pilot, groundAt: (X: number, Z: number) => number): boolean {
       const dt = Math.min(dtIn, 1 / 30);
       this.pitch += pilot.pitch * AIR.pitchRate * dt;
+      this.pitch = Math.max(-AIR.maxPitch, Math.min(AIR.maxPitch, this.pitch));
       this.yaw += pilot.yaw * AIR.turnRate * dt;
       this.bank += (pilot.yaw * AIR.bankMax - this.bank) * Math.min(1, dt * 4);
       const v = this.speed;

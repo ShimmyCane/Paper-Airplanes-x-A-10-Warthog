@@ -1,6 +1,6 @@
 // Shared numbers for the whole game. Change a number here, rebuild, reload.
 namespace PA {
-  export const VERSION = '0.21 (2026-11-22: 10 missions, clear start, fewer fighters, nose-up fix, throttle always in the jet)';
+  export const VERSION = '0.22 (2026-11-22: calm missions silent, no backward flight, default lever 60%, pitch limit)';
 
   // Internal resolution. The canvas is small on purpose: every pixel is a
   // "pixel-art pixel", and the page scales it up with no smoothing.

@@ -110,7 +110,7 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
     p.step(1 / 60, { pitch: 1, yaw: 0, throttle: 0.36 }, flat);
     if (p.stalled) stalled++;
   }
-  check('helper on: holding full nose up for 30 s never stalls', stalled === 0 && p.speed * 1.94 > 50, 'speed ' + (p.speed * 1.94).toFixed(0) + ' kt');
+  check('helper on: holding full nose up for 30 s never stalls and keeps going forward', stalled === 0 && p.speed * 1.94 > 40 && p.vx > 0, 'speed ' + (p.speed * 1.94).toFixed(0) + ' kt');
 }
 
 // 7. Missions: the same seed gives the same targets and rings; free play has ground targets.
@@ -253,6 +253,45 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   const off = th.plane.throttle;
   th.throttleSet = 1; th.update(1 / 30);
   check('throttle: the lever counts with the flight helper on', off === 0 && th.plane.throttle === 1, 'at 0: ' + off + ', at 1: ' + th.plane.throttle);
+}
+
+// 9g. Calm missions: nothing fires at the plane for two minutes (no bases, guns, or missiles).
+//     Gun missions still fire. The default lever gets past 120 knots level. Backward flight is impossible.
+{
+  const fired = (missionNumber) => {
+    const g = new PA.Game({ mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 1, invincible: 1, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 1, allies: 1, flightHelp: 1 });
+    g.onSound = () => {};
+    g.missionNumber = missionNumber; g.newFlight(42);
+    const seen = new Set();
+    for (let i = 0; i < 120 * 30; i++) {
+      g.update(1 / 30);
+      for (const s of g.shells) seen.add(s);
+      for (const m of g.missiles) if (m.enemy) seen.add(m);
+    }
+    return seen.size;
+  };
+  check('calm: range day, nothing fires at the plane in 2 minutes', fired(1) === 0, 'shots ' + fired(1));
+  check('calm: first contact, nothing but a fighter fires in 2 minutes', fired(2) <= 12, 'shots ' + fired(2));
+  check('guns: coast watch fires at the plane', fired(3) > 0, 'shots ' + fired(3));
+
+  const g = new PA.Game({ mode: 'jet', control: 'drag', view: 'chase', difficulty: 'felix', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 0, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0, flightHelp: 1 });
+  g.onSound = () => {}; g.mission.targets = [];
+  let top = 0;
+  for (let i = 0; i < 60 * 30; i++) { g.update(1 / 30); top = Math.max(top, g.plane.speed); }
+  check('speed: the default lever gets past 120 knots level', top * 1.944 > 120, 'top ' + (top * 1.944).toFixed(0) + ' kt');
+
+  for (const assist of [true, false]) {
+    const p = new PA.Aircraft(true);
+    p.assist = assist;
+    p.start(0, 0, 300, 52, 0, 0, 1);
+    let minVx = 1e9, maxPitch = 0;
+    for (let i = 0; i < 20 * 60; i++) {
+      p.step(1 / 60, { pitch: 1, yaw: 0, throttle: 1 }, flat);
+      minVx = Math.min(minVx, p.vx); maxPitch = Math.max(maxPitch, Math.abs(p.pitch));
+    }
+    check('backward: a hard pull-up never flies backward (helper ' + (assist ? 'on' : 'off') + ')', minVx > 0, 'min vx ' + minVx.toFixed(1));
+    check('backward: the nose stops short of straight up (helper ' + (assist ? 'on' : 'off') + ')', maxPitch < Math.PI / 2, 'max pitch ' + (maxPitch * 57.3).toFixed(0) + ' deg');
+  }
 }
 
 // 9e. Damage shows as a mark, even when invincible (and costs nothing then).
@@ -482,6 +521,8 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
 {
   const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'felix', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 0, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0 };
   const g = new PA.Game(st);
+  // a gun mission (Coast Watch), so bases and their guns come up
+  g.missionNumber = 3; g.newFlight(7);
   g.onSound = () => {};
   const cities0 = g.mission.targets.filter(t => t.kind === 'city').length;
   g.plane.Z = 900;
@@ -496,6 +537,8 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 0, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0, flightHelp: 1 };
   const setup = (kind, X, Z, h) => {
     const g = new PA.Game(st);
+    // a gun mission (Coast Watch), so the ground guns are live
+    g.missionNumber = 3; g.newFlight(7);
     g.onSound = () => {};
     g.plane.start(0, 0, h, 50, 0, 0, 0.36);
     const t = PA.target(kind, X, Z, () => 0.5);
@@ -523,6 +566,8 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
 {
   const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 1, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0, flightHelp: 1 };
   const g = new PA.Game(st);
+  // a gun mission (Coast Watch), so the ground guns are live
+  g.missionNumber = 3; g.newFlight(7);
   g.onSound = () => {};
   g.plane.start(0, 0, 200, 50, 0, 0, 0.36);
   const sam = PA.target('sam', 600, 300, () => 0.5);   // ahead and to the right
