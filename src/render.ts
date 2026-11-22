@@ -996,7 +996,8 @@ namespace PA {
       sy: H * PLANE_SCREEN_Y,
       px: (W * (0.25 + 0.08 * tight)) / m.w,
       yaw: 0,
-      elev: Math.max(0.25, Math.min(1.5, viewElev - p.pitch * 0.4)),
+      // A nose-up plane shows more of its top, so the camera looks down on it more (plus, not minus).
+      elev: Math.max(0.25, Math.min(1.5, viewElev + p.pitch * 0.4)),
       roll: g.settings.view === 'top' ? p.bank : p.bank * (1 - ROLL_FOLLOW),
     };
     drawModel(ctx, m, pose);

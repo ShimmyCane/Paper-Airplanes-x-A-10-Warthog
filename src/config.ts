@@ -1,6 +1,6 @@
 // Shared numbers for the whole game. Change a number here, rebuild, reload.
 namespace PA {
-  export const VERSION = '0.20 (2026-11-21: drone flight, real enemy fire, red radar arrow, throttle lever)';
+  export const VERSION = '0.21 (2026-11-22: 10 missions, clear start, fewer fighters, nose-up fix, throttle always in the jet)';
 
   // Internal resolution. The canvas is small on purpose: every pixel is a
   // "pixel-art pixel", and the page scales it up with no smoothing.

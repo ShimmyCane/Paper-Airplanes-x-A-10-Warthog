@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Paper Airplanes × A-10 Warthog</title>
-  <link rel="stylesheet" href="css/app.css?v=0.20">
+  <link rel="stylesheet" href="css/app.css?v=0.21">
 </head>
 <body>
   <main class="play" id="play">
@@ -158,7 +158,7 @@
           <button type="button" data-v="1">On</button>
           <button type="button" data-v="0">Off</button>
         </div>
-        <p class="hint">On: the nose stops short of a stall, and the engine adds power on its own when the plane slows below 100 knots. BOOST still gives full power. Off: real flying. A throttle lever appears left of the buttons (or R and F keys); you watch the speed yourself. The paper glider keeps the stall guard.</p>
+        <p class="hint">On: the nose stops short of a stall, and the engine adds power on its own when the plane slows below 100 knots, on top of the lever. Off: real flying, with the lever as your only power. The lever is always left of the buttons in the jet (or R and F keys). BOOST still gives full power. The paper glider keeps the stall guard.</p>
       </div>
       <div class="setting">
         <label>Safe flight</label>
@@ -232,7 +232,7 @@
       <details class="group">
         <summary>🛩️ Enemies and allies</summary>
       <div class="setting">
-        <label for="enemyWave">Enemy fighters per wave <span class="val" id="enemyWaveValue"></span></label>
+        <label for="enemyWave">Enemy fighters (half at 1, full at 2) <span class="val" id="enemyWaveValue"></span></label>
         <input class="slider" id="enemyWave" type="range" min="0" max="6" step="1" data-key="enemyWave">
         <p class="hint">A wave comes into your airspace about every minute. Set 0 for none.</p>
       </div>
@@ -335,6 +335,6 @@
 
   <div class="errorsPanel" id="errorsPanel" hidden></div>
 
-  <script src="js/game.js?v=0.20"></script>
+  <script src="js/game.js?v=0.21"></script>
 </body>
 </html>
