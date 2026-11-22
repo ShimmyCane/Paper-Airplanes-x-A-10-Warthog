@@ -189,13 +189,25 @@ namespace PA {
     };
   }
 
+  // A place on land for a cluster. It keeps off the road and the railway, so no house or
+  // barn ends up sitting on a line.
+  export function landSite(rand: () => number): number {
+    let X = 0;
+    for (let tries = 0; tries < 8; tries++) {
+      X = (rand() - 0.5) * 900;
+      if (Math.abs(X - ROAD_X) > 40 && Math.abs(X - RAIL_X) > 40) break;
+    }
+    return X;
+  }
+
   // Clusters of things in front of baseZ. Each cluster is one kind of place.
-  export function spawnTargets(rand: () => number, baseZ: number, count: number): Target[] {
+  // guns: whether the army, town and coast have anti-aircraft guns (missions decide this).
+  export function spawnTargets(rand: () => number, baseZ: number, count: number, guns = true): Target[] {
     const out: Target[] = [];
     for (let i = 0; i < count; i++) {
       const Z = baseZ + i * 120 + rand() * 60;
       const roll = rand();
-      const landX = (rand() - 0.5) * 900;
+      const landX = landSite(rand);
       // Some vehicles drive along the road, north or south.
       const driver = (kind: string, X: number, Z: number): Target => {
         const t = target(kind, X, Z, rand);
@@ -207,6 +219,7 @@ namespace PA {
         const X = landX;
         out.push(driver('tank_mbt', ROAD_X + 4, Z));
         out.push(driver(rand() < 0.5 ? 'tank_light' : 'apc', ROAD_X - 6, Z + 4));
+        if (!guns) continue;
         if (rand() < 0.5) out.push(target('sam', X - 10, Z + 10, rand));
         else out.push(target('flak', X + 14, Z - 6, rand));
       } else if (roll < 0.5) {
@@ -221,7 +234,7 @@ namespace PA {
         out.push(target('city', X, Z, rand));
         out.push(target('city', X + 8, Z + 6, rand));
         out.push(target('city', X - 7, Z + 9, rand));
-        out.push(target('sam', X + 14, Z - 4, rand));
+        if (guns) out.push(target('sam', X + 14, Z - 4, rand));
       } else if (roll < 0.78) {
         // Airfield: a hangar, parked jets and a fuel tanker.
         const X = Math.min(SEA_X - 120, landX);
@@ -233,7 +246,7 @@ namespace PA {
         // Port: a ship on the sea, with a flak gun on the coast.
         const X = SEA_X + 80 + rand() * 300;
         out.push(target('ship', X, Z, rand));
-        out.push(target('flak', SEA_X - 30, Z, rand));
+        if (guns) out.push(target('flak', SEA_X - 30, Z, rand));
       } else {
         // Railway: wagons on the line.
         const X = RAIL_X;
@@ -262,7 +275,45 @@ namespace PA {
       faction: 'ally', orbit: { cx, cz, r: 900, ang: rand() * Math.PI * 2, w: 0.09 }, age: 0 };
   }
 
-  export function makeMission(mode: Mode, seed: number): Mission {
+  // The missions, in order. Mission 1 is a calm range day: no fighters and no guns, so the
+  // first flight is about learning the controls. Later ones add fighters, guns and ships.
+  // start: 'takeoff' from the runway, or 'return': already flying home, hull down, with
+  // fighters on the tail (the first wave of them is there from the start).
+  // wave: fighters per wave at the normal setting (2); the setting scales it.
+  export interface MissionSpec {
+    name: string;
+    brief: string;
+    goal: 'ground' | 'air' | 'ship';
+    count: number;      // how many to destroy
+    ships: number;      // ships placed at sea (ship missions)
+    guns: boolean;      // anti-aircraft guns on the ground and the coast
+    start: 'takeoff' | 'return';
+    firstWave: number;  // seconds before the first fighter wave
+    waveEvery: number;  // seconds between waves
+    wave: number;       // fighters per wave
+  }
+
+  export const MISSIONS: MissionSpec[] = [
+    { name: 'Range Day', brief: 'Practice on the range. Three ground targets, no fighters, no guns.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+    { name: 'First Contact', brief: 'One fighter now and then. Hold the nose on a target until it locks.', goal: 'ground', count: 4, ships: 0, guns: false, start: 'takeoff', firstWave: 90, waveEvery: 90, wave: 2 },
+    { name: 'Coast Watch', brief: 'Two ships off the coast, with flak on the shore.', goal: 'ship', count: 2, ships: 2, guns: true, start: 'takeoff', firstWave: 100, waveEvery: 80, wave: 2 },
+    { name: 'Armour Strike', brief: 'Tanks on the move. Six of them, with a fighter now and then.', goal: 'ground', count: 6, ships: 0, guns: true, start: 'takeoff', firstWave: 120, waveEvery: 100, wave: 2 },
+    { name: 'Intercept', brief: 'Enemy fighters are coming in. Shoot down three.', goal: 'air', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 30, waveEvery: 45, wave: 3 },
+    { name: 'Heading Home', brief: 'Flying home with a fighter on your tail. Break it off, then finish the job.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'return', firstWave: 40, waveEvery: 60, wave: 1 },
+    { name: 'Town Watch', brief: 'The town has SAM sites. Five targets, and stay out of the missiles.', goal: 'ground', count: 5, ships: 0, guns: true, start: 'takeoff', firstWave: 120, waveEvery: 90, wave: 2 },
+    { name: 'Air Superiority', brief: 'Five fighters over the sea lane. Guns and missiles both help.', goal: 'air', count: 5, ships: 0, guns: true, start: 'takeoff', firstWave: 30, waveEvery: 40, wave: 3 },
+    { name: 'Port Strike', brief: 'Three ships in the harbour, with the shore guns awake.', goal: 'ship', count: 3, ships: 3, guns: true, start: 'takeoff', firstWave: 60, waveEvery: 60, wave: 2 },
+    { name: 'Last Light', brief: 'Eight targets before dark, with everything they have. Coming home under fire.', goal: 'ground', count: 8, ships: 0, guns: true, start: 'return', firstWave: 30, waveEvery: 45, wave: 3 },
+  ];
+
+  // The spec for mission number n (from 1). After the list, it starts again, a little harder.
+  export function missionFor(n: number): MissionSpec {
+    const base = MISSIONS[(n - 1) % MISSIONS.length];
+    const loop = Math.floor((n - 1) / MISSIONS.length);
+    return { ...base, count: base.count + loop, wave: base.wave > 0 ? base.wave + loop : 0 };
+  }
+
+  export function makeMission(mode: Mode, seed: number, spec: MissionSpec = MISSIONS[0]): Mission {
     const rand = random(seed);
     if (mode === 'glider') {
       const hoops: Hoop[] = [];
@@ -274,7 +325,12 @@ namespace PA {
       return { mode, targets: [], hoops };
     }
     if (mode === 'drone') return { mode, targets: [], hoops: droneCourse() };
-    return { mode, targets: spawnTargets(rand, 260, 10), hoops: [] };
+    // The first clusters start well out, so there is room to fly before anything is in reach.
+    const targets = spawnTargets(rand, 520, 10, spec.guns);
+    for (let i = 0; i < spec.ships; i++) {
+      targets.push(target('ship', SEA_X + 140 + rand() * 160, 620 + i * 220 + rand() * 60, rand));
+    }
+    return { mode, targets, hoops: [] };
   }
 
   // The drone race: a closed loop of gates over open fields, about 700 m round, low and high.

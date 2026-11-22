@@ -6,7 +6,7 @@ namespace PA {
     mode: 'glider', control: 'drag', view: 'chase', difficulty: 'felix', sound: 1,
     volMusic: 20, volGun: 25, volTurn: 25, volWarn: 60,
     forces: 0, flightHelp: 1, safeFlight: 1, invincible: 0, autoReload: 1,
-    enemyWave: 2, allies: 1, showErrors: 0, droneKind: 'camera', stickMode: 'mode2',
+    enemyWave: 1, allies: 1, showErrors: 0, droneKind: 'camera', stickMode: 'mode2',
   };
   const VIEW_ORDER: View[] = ['chase', 'top', 'cockpit'];
   const TUTORIAL_KEY = 'pa_warthog.tutorialSeen';
@@ -516,12 +516,14 @@ namespace PA {
     const left = Math.max(0, g.objectiveGoal - g.objectiveDone);
     const card = $('missionCard');
     card.hidden = g.missionCard <= 0;
-    $('missionTitle').textContent = 'Mission ' + g.missionNumber;
-    $('missionBody').textContent = 'Destroy ' + g.objectiveGoal + ' ground targets. Arrows on the radar point to them.';
+    const spec = g.missionSpec;
+    $('missionTitle').textContent = 'Mission ' + g.missionNumber + ': ' + spec.name;
+    $('missionBody').textContent = spec.brief + ' Arrows on the radar point to the targets.';
     $('objective').textContent = g.resupplied > 0
       ? 'Mission complete! Everything restocked.'
       : g.settings.mode === 'glider' ? ''
-      : 'Mission ' + g.missionNumber + ': destroy ' + left + ' more ground target' + (left === 1 ? '' : 's');
+      : 'Mission ' + g.missionNumber + ': ' + (g.objectiveKind === 'air' ? 'shoot down ' : 'destroy ') + left + ' more '
+        + (g.objectiveKind === 'air' ? 'fighter' : g.objectiveKind === 'ship' ? 'ship' : 'ground target') + (left === 1 ? '' : 's');
     const cool = Math.ceil(g.resupplyCool);
     $('reloadBtn').toggleAttribute('disabled', g.felix || cool > 0);
     $('reloadHint').textContent = g.felix ? 'Felix mode never runs out, so no reload is needed.'

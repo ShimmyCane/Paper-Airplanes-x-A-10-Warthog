@@ -159,7 +159,7 @@ canvas {
 body.glider .actions { display: none; }
 .c-mint { background: var(--sage); }
 
-/* Throttle lever (jet, flight helper off): left of the action buttons. It stays where it is left. */
+/* Throttle lever (jet): left of the action buttons. It stays where it is left. */
 .throttle {
   position: absolute;
   right: 146px;
@@ -174,7 +174,7 @@ body.glider .actions { display: none; }
   display: none;
   touch-action: none;
 }
-body.jet.manual .throttle { display: block; }
+body.jet .throttle { display: block; }
 .throttleFill {
   position: absolute; left: 0; right: 0; bottom: 0;
   background: var(--sun);

@@ -43,7 +43,7 @@ namespace PA {
 
     // Mission targets beyond the rim: an arrow on the rim pointing toward each one.
     for (const t of g.mission.targets) {
-      if (!t.alive || !isObjective(t) || place(t.X, t.Z)) continue;
+      if (!t.alive || !g.countsForObjective(t) || place(t.X, t.Z)) continue;
       const dx = t.X - p.X, dz = t.Z - p.Z;
       const f = dx * sinY + dz * cosY;
       const r = dx * cosY - dz * sinY;

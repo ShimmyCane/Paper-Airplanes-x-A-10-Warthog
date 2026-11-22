@@ -57,3 +57,10 @@
 - **Ring and gate sizes carry the jet's scale.** A line width set for 6 m rings seen from 100 m fills the screen at 10 m; scale by what is being drawn.
 - **A drone with GPS holds a speed: do not add drag on top of its speed controller,** or it never reaches its top speed.
 - **Pursuit AI that aims past a gate can orbit it.** Count a gate when the racer crosses its plane near the middle.
+
+## 2026-11-22 (round 14, convo v0.21)
+
+- **A camera angle that moves with the nose must add, not subtract.** A nose-up plane shows more of its top, so the view goes up with the pitch.
+- **A default that hides a control is a bug, not a setting.** The throttle only showed with the helper off, and the helper ignored it. Make the control always show and let the helper add to it.
+- **A test that counts live objects can see zero by chance.** A fighter spawned and shot down by an ally before the check ran. Watch over the whole window instead.
+- **Keep the mission data in one table.** Goal, start, guns and waves in `MISSIONS` let the HUD, radar and spawner read the same rules.

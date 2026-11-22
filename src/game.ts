@@ -24,7 +24,7 @@ namespace PA {
     safeFlight: number;   // 1 = a floor above the ground: the plane levels out and pulls up
     invincible: number;   // 1 = hits do no harm (the damage still shows)
     autoReload: number;   // 1 = missiles come back over time
-    enemyWave: number;    // enemy fighters per wave, one wave about every minute (0-6)
+    enemyWave: number;    // enemy fighter density: 0 none, 1 half, 2 full (0-6 on the slider)
     allies: number;       // allied fighters that fly around (0-4)
     droneKind?: DroneKind;   // drone flight: which drone
     stickMode?: StickMode;   // drone flight: which transmitter layout (Mode 2, 1 or 3)
@@ -183,7 +183,6 @@ namespace PA {
   const FLOOR_MIN = 8;
   const AIR_RANGE = 900;
   const GROUND_RANGE = 700;
-  const WAVE_SECONDS = 60;
   const FIGHTER_SPEED = 120;
   const FIGHTER_TURN = 0.7;
   const FIGHTER_FIRE_RANGE = 380;
@@ -197,7 +196,6 @@ namespace PA {
   const ALLY_COOL = 0.35;
   const BASE_SPACING = 1400;     // a defended base every this many metres along the route
   const KEEP_AHEAD = 6;
-  const OBJECTIVE_GROUND = [4, 5, 6];    // ground targets to destroy for a mission (cycles)
 
   export class Game {
     phase: Phase = 'flying';
@@ -235,6 +233,8 @@ namespace PA {
     beepTimer = 0;
     objectiveGoal = 0;
     objectiveDone = 0;
+    objectiveKind: 'ground' | 'air' | 'ship' = 'ground';
+    missionSpec: MissionSpec = MISSIONS[0];   // the mission in progress
     missionNumber = 1;
     resupplied = 0;            // seconds left of the "resupplied" banner
     missionCard = 0;           // seconds left of the mission pop-up card
@@ -270,7 +270,8 @@ namespace PA {
       const score = this.score, kills = this.kills;
       const ammo = this.ammo, missiles = this.missileStock, chaff = this.chaff;
       this.seed = seed;
-      this.mission = makeMission(this.settings.mode, seed);
+      this.missionSpec = missionFor(this.missionNumber);
+      this.mission = makeMission(this.settings.mode, seed, this.missionSpec);
       this.rand = random(seed + 7);
       this.plane = this.settings.mode === 'drone' ? new Drone(this.settings.droneKind || 'camera') : new Aircraft(this.settings.mode === 'jet');
       this.race = null;
@@ -279,13 +280,16 @@ namespace PA {
         this.startRace();
       } else if (this.settings.mode === 'glider') {
         this.plane.start(0, 0, 90, 40, 0.08, 0, 0);
+      } else if (this.missionSpec.start === 'return') {
+        // Already flying home, a little way north of the field.
+        this.plane.start(0, 900, groundAt(0, 900) + 70, 60, 0, 0, CRUISE_THROTTLE);
       } else {
         this.plane.start(0, 0, groundAt(0, 0) + 10, 50, 0.05, 0, CRUISE_THROTTLE);
       }
       this.phase = 'flying';
       this.score = keepScore ? score : 0;
       this.kills = keepScore ? kills : 0;
-      this.hull = 100;
+      this.hull = this.missionSpec.start === 'return' && this.settings.mode === 'jet' ? 60 : 100;
       this.hits = 0;
       this.hoopsPassed = 0;
       this.time = 0;
@@ -296,7 +300,7 @@ namespace PA {
       this.chaff = refill || this.felix ? CHAFF_MAX : chaff;
       this.missileCool = 0;
       this.reloadTimer = 0;
-      this.waveTimer = 8;
+      this.waveTimer = this.missionSpec.firstWave;
       this.wrecks = [];
       this.bases = [];
       this.nextBaseZ = BASE_SPACING;
@@ -305,11 +309,21 @@ namespace PA {
       this.lock = { target: null, progress: 0 };
       this.tagged = false;
       this.breakTimer = 0;
-      this.objectiveGoal = OBJECTIVE_GROUND[(this.missionNumber - 1) % OBJECTIVE_GROUND.length];
+      this.objectiveGoal = this.missionSpec.count;
+      this.objectiveKind = this.missionSpec.goal;
       this.objectiveDone = 0;
       this.missionCard = this.settings.mode === 'jet' ? 5 : 0;
       for (let i = 0; i < this.settings.allies; i++) {
         this.mission.targets.push(spawnAir(this.rand, 0, 0, false));
+      }
+      if (this.missionSpec.start === 'return' && this.settings.mode === 'jet') {
+        // The fighters that catch the plane on its way home come in from behind.
+        for (let i = 0; i < this.missionSpec.wave; i++) {
+          const t = spawnAir(this.rand, this.plane.X, this.plane.Z, true);
+          t.X = 2 * this.plane.X - t.X;
+          t.Z = 2 * this.plane.Z - t.Z;
+          this.mission.targets.push(t);
+        }
       }
       this.shots = [];
       this.shells = [];
@@ -371,7 +385,7 @@ namespace PA {
       const pilot: Pilot = {
         pitch: clamp(this.axes.pitch),
         yaw: clamp(this.axes.yaw),
-        throttle: jet ? (this.held.boost ? 1 : this.settings.flightHelp === 1 ? CRUISE_THROTTLE : this.throttleSet) : 0,
+        throttle: jet ? (this.held.boost ? 1 : this.throttleSet) : 0,
       };
       this.plane.assist = this.settings.flightHelp === 1;
       this.floorActive = false;
@@ -648,14 +662,28 @@ namespace PA {
       this.newFlight(this.seed + 1, true, true);
     }
 
+    // Fighters in one wave: the mission's number, scaled by the setting (2 is full, 1 is half).
+    // Felix (easy) has half of that again, but never fewer than one.
+    private waveSize(): number {
+      const base = this.missionSpec.wave;
+      if (this.settings.enemyWave === 0 || base === 0) return 0;
+      const n = Math.max(1, Math.round(base * this.settings.enemyWave / 2));
+      return this.felix ? Math.max(1, Math.floor(n / 2)) : n;
+    }
+
+    // Does this target count toward the mission? Ground: the places and vehicles. Air: an
+    // enemy fighter. Ship: a ship at sea.
+    countsForObjective(t: Target): boolean {
+      if (this.objectiveKind === 'air') return t.faction === 'enemy';
+      if (this.objectiveKind === 'ship') return t.kind === 'ship';
+      return isObjective(t);
+    }
+
     private updateWaves(dt: number): void {
       this.waveTimer -= dt;
       if (this.waveTimer <= 0) {
-        this.waveTimer = WAVE_SECONDS;
-        // Felix (easy) has a quarter of the fighters; normal has half as many again.
-        const wave = this.settings.enemyWave === 0 ? 0
-          : this.felix ? Math.max(1, Math.round(this.settings.enemyWave * 0.25))
-          : Math.round(this.settings.enemyWave * 1.5);
+        this.waveTimer = this.missionSpec.waveEvery;
+        const wave = this.waveSize();
         for (let i = 0; i < wave; i++) {
           this.mission.targets.push(spawnAir(this.rand, this.plane.X, this.plane.Z, true));
         }
@@ -1183,8 +1211,7 @@ namespace PA {
       t.alive = false;
       this.kills++;
       this.score += t.points;
-      // The mission objective counts ground places and vehicles (not ships, rail, or the air).
-      if (isObjective(t)) this.objectiveDone++;
+      if (this.countsForObjective(t)) this.objectiveDone++;
       this.explode(t.X, tg + 1, t.Z, KINDS[t.kind].height > 5 ? 26 : 16);
       // Ground targets leave a wreck that burns and smokes for a while.
       if (t.h === undefined && t.kind !== 'ship') {
@@ -1292,7 +1319,7 @@ namespace PA {
       }
       const left = m.targets.filter(t => t.alive && t.faction === undefined).length;
       if (left < KEEP_AHEAD) {
-        m.targets.push(...spawnTargets(this.rand, this.plane.Z + 240, 6));
+        m.targets.push(...spawnTargets(this.rand, this.plane.Z + 420, 6, this.missionSpec.guns));
       }
       // Bases come up ahead of the plane, one every BASE_SPACING metres of route.
       while (this.plane.Z + 900 > this.nextBaseZ) {

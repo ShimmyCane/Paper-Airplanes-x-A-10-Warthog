@@ -177,21 +177,82 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   check('ammo: it comes back over time', g.ammo > before + 5, 'ammo ' + g.ammo.toFixed(1));
 }
 
-// 9d. Enemy waves come about every minute; allies fly and do not shoot.
+// 9d. Waves: the calm first mission has no fighters; mission 2 sends one about 90 s in.
+//     Allies fly and do not shoot.
 {
   const settings = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'felix', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 0, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 2, allies: 1 };
   const g = new PA.Game(settings);
   g.onSound = () => {};
-  g.mission.targets = g.mission.targets.filter(t => t.faction === 'ally');
-  const enemies0 = g.mission.targets.filter(t => t.faction === 'enemy').length;
-  for (let i = 0; i < 10 * 30; i++) g.update(1 / 30);
-  const enemies1 = g.mission.targets.filter(t => t.faction === 'enemy').length;
-  check('waves: the first wave arrives soon after take-off (Felix: a quarter of the setting, at least one)', enemies1 >= 1 && enemies0 === 0, 'enemies ' + enemies1);
+  check('missions: the first is the calm range day (no fighters, no guns)', g.missionSpec.name === 'Range Day' && g.missionSpec.wave === 0 && !g.missionSpec.guns, g.missionSpec.name);
+  let calmSeen = 0;
+  for (let i = 0; i < 100 * 30; i++) { g.update(1 / 30); calmSeen = Math.max(calmSeen, g.mission.targets.filter(t => t.faction === 'enemy').length); }
+  check('range day: no fighters in 100 s', calmSeen === 0, 'max ' + calmSeen);
+
+  g.missionNumber = 2;
+  g.newFlight(5);
+  let seen = 0, firstAt = -1;
+  for (let i = 0; i < 120 * 30; i++) {
+    g.update(1 / 30);
+    const n = g.mission.targets.filter(t => t.faction === 'enemy').length;
+    if (n > 0 && firstAt < 0) firstAt = i / 30;
+    seen = Math.max(seen, n);
+  }
+  check('waves: First Contact sends a fighter about 90 s in', firstAt > 85 && firstAt < 95, 'first at ' + firstAt.toFixed(1) + ' s');
+  check('waves: at half density a wave is one fighter (Felix)', seen === 1, 'max ' + seen);
   const ally = g.mission.targets.find(t => t.faction === 'ally');
   const a0 = ally.X;
   for (let i = 0; i < 2 * 30; i++) g.update(1 / 30);
   check('allies: they fly around (they move)', ally.X !== a0);
   check('allies: they do not shoot', !g.shells.some(s => s.warn === undefined && Math.hypot(s.X - ally.X, s.Z - ally.Z) < 2));
+}
+
+// 9f. The missions: ten in order, a return starts under fire, ships and fighters count,
+//     the ground is clear of the road and rail, and the start is clear of targets.
+{
+  check('missions: ten, the calm one first', PA.MISSIONS.length === 10 && PA.MISSIONS[0].wave === 0, 'count ' + PA.MISSIONS.length);
+  check('missions: after ten, the list starts again a little harder', PA.missionFor(11).name === 'Range Day' && PA.missionFor(11).count === PA.MISSIONS[0].count + 1);
+  const base = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 0, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 1, allies: 0 };
+
+  const g = new PA.Game(base);
+  g.onSound = () => {};
+  g.missionNumber = 6; g.newFlight(9);   // Heading Home: starts flying home, hull down
+  const behind = g.mission.targets.filter(t => t.faction === 'enemy' && t.Z < g.plane.Z).length;
+  check('return: starts flying home with fighters on the tail', g.plane.Z > 800 && behind >= 1 && g.hull === 60, 'behind ' + behind + ', hull ' + g.hull);
+
+  g.missionNumber = 9; g.newFlight(10);  // Port Strike: ships at sea
+  const ships = g.mission.targets.filter(t => t.kind === 'ship');
+  check('ship mission: three ships at sea', ships.length >= 3 && ships.every(t => t.X > PA.SEA_X), 'ships ' + ships.length);
+  check('ship mission: a ship counts, a truck does not', g.countsForObjective(ships[0]) && !g.countsForObjective({ kind: 'truck', alive: true, faction: undefined }));
+
+  g.missionNumber = 5; g.newFlight(11);  // Intercept: fighters count
+  check('air mission: a fighter counts, a tank does not', g.countsForObjective({ kind: 'fighter', faction: 'enemy' }) && !g.countsForObjective({ kind: 'tank_mbt' }));
+
+  g.missionNumber = 1; g.newFlight(12);  // Range Day: no guns anywhere
+  const guns = g.mission.targets.filter(t => t.kind === 'sam' || t.kind === 'flak').length;
+  check('range day: no guns on the map', guns === 0, 'guns ' + guns);
+  const near = g.mission.targets.filter(t => t.faction === undefined && Math.hypot(t.X, t.Z) < 450).length;
+  check('clear start: no ground place within 450 m of the start', near === 0, 'near ' + near);
+
+  // Buildings never sit on the road or the railway.
+  let onLine = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const m = PA.makeMission('jet', seed, PA.MISSIONS[9]);
+    for (const t of m.targets) {
+      if (!['farm', 'barn', 'city', 'hangar', 'barracks'].includes(t.kind)) continue;
+      if (Math.abs(t.X - PA.ROAD_X) < 25 || Math.abs(t.X - PA.RAIL_X) < 25) onLine++;
+    }
+  }
+  check('ground: no building on the road or the railway', onLine === 0, 'on a line ' + onLine);
+
+  // The lever counts with the helper on: at zero, above cruise speed, the engine is off.
+  const th = new PA.Game(Object.assign({}, base, { flightHelp: 1, safeFlight: 0 }));
+  th.onSound = () => {};
+  th.mission.targets = [];
+  th.plane.start(0, 0, 200, 60, 0, 0, 0.5);
+  th.throttleSet = 0; th.update(1 / 30);
+  const off = th.plane.throttle;
+  th.throttleSet = 1; th.update(1 / 30);
+  check('throttle: the lever counts with the flight helper on', off === 0 && th.plane.throttle === 1, 'at 0: ' + off + ', at 1: ' + th.plane.throttle);
 }
 
 // 9e. Damage shows as a mark, even when invincible (and costs nothing then).
