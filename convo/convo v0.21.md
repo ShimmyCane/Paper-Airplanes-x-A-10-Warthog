@@ -14,7 +14,7 @@ Jimmy:
 ## Answers
 
 - **Nose up looked like a dive.** The sprite never rotates. Pitch moves the camera, and the sign was backwards: a nose-up plane showed less of its top, so it looked as if it dropped. Fixed in `src/render.ts` (`elev` now adds the pitch).
-- **Throttle.** Two things hid it. The default mode is the paper glider, which has no engine. In the jet, the lever only showed with the flight helper off, and the helper ignored it. The lever now shows in the jet with the helper on, and it counts: the helper adds power when you are slow, on top of your setting. Settings › Mode › Jet to fly with it.
+- **Throttle.** Two things hid it. The default mode is the paper glider, which has no engine. In the jet, the lever only showed with the flight helper off, and the helper ignored it. The lever now shows in the jet with the helper on, and it counts: the helper adds power when you are slow, on top of your setting. Settings › Mode › A-10 jet to fly with it.
 - **Fewer fighters.** The default is now half (setting 1), and the wave count is set by the mission, not by a fixed rule. The first wave comes after 30–120 s, not 8 s.
 - **Clear start.** Mission 1 is a range day: no fighters, no guns, ground targets 520 m out instead of 260 m.
 - **Ground assets.** My reading: every building sits on land, not on the road or railway, and no cluster is placed on a line. Tell me if you meant something else (e.g. spacing or what is drawn on the ground).
