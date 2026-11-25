@@ -2,7 +2,7 @@
 // Shared numbers for the whole game. Change a number here, rebuild, reload.
 var PA;
 (function (PA) {
-    PA.VERSION = '0.22 (2026-11-22: calm missions silent, no backward flight, default lever 60%, pitch limit)';
+    PA.VERSION = '0.23 (2026-11-25: training dots, rings and a circuit race; flak bursts; screen shake; hostile-only lock)';
     // Internal resolution. The canvas is small on purpose: every pixel is a
     // "pixel-art pixel", and the page scales it up with no smoothing.
     PA.W = 480;
@@ -139,22 +139,22 @@ var PA;
     }
     PA.altOf = altOf;
     PA.KINDS = {
-        tank_mbt: { r: 2.6, height: 2.6, hp: 2, points: 100, group: 'army', gun: { range: 350, cool: 1.4, speed: 320, type: 'mg', dmg: 4, elev: 0.3, spread: 0.05 } },
-        tank_light: { r: 2.2, height: 2.0, hp: 1, points: 60, group: 'army', gun: { range: 320, cool: 1.6, speed: 320, type: 'mg', dmg: 4, elev: 0.3, spread: 0.05 } },
-        apc: { r: 2.4, height: 2.2, hp: 1, points: 50, group: 'army', gun: { range: 320, cool: 1.2, speed: 320, type: 'mg', dmg: 4, elev: 0.6, spread: 0.06 } },
+        tank_mbt: { r: 2.6, height: 2.6, hp: 2, points: 100, hostile: true, group: 'army', gun: { range: 350, cool: 1.4, speed: 320, type: 'mg', dmg: 4, elev: 0.3, spread: 0.05 } },
+        tank_light: { r: 2.2, height: 2.0, hp: 1, points: 60, hostile: true, group: 'army', gun: { range: 320, cool: 1.6, speed: 320, type: 'mg', dmg: 4, elev: 0.3, spread: 0.05 } },
+        apc: { r: 2.4, height: 2.2, hp: 1, points: 50, hostile: true, group: 'army', gun: { range: 320, cool: 1.2, speed: 320, type: 'mg', dmg: 4, elev: 0.6, spread: 0.06 } },
         truck: { r: 2.0, height: 2.6, hp: 1, points: 40, group: 'farm' },
         fuel: { r: 2.6, height: 2.6, hp: 1, points: 60, group: 'airfield' },
-        sam: { r: 3.0, height: 3.5, hp: 2, points: 150, group: 'army', gun: { range: 1100, cool: 10, speed: 170, type: 'sam', dmg: 45, elev: 1.5, spread: 0 } },
-        flak: { r: 2.0, height: 3.0, hp: 1, points: 80, group: 'army', gun: { range: 650, cool: 1.8, speed: 240, type: 'flak', dmg: 12, elev: 1.5, spread: 0.025 } },
+        sam: { r: 3.0, height: 3.5, hp: 2, points: 150, hostile: true, group: 'army', gun: { range: 1100, cool: 10, speed: 170, type: 'sam', dmg: 45, elev: 1.5, spread: 0 } },
+        flak: { r: 2.0, height: 3.0, hp: 1, points: 80, hostile: true, group: 'army', gun: { range: 650, cool: 1.8, speed: 240, type: 'flak', dmg: 12, elev: 1.5, spread: 0.025 } },
         farm: { r: 4.0, height: 4.0, hp: 1, points: 30, group: 'farm' },
         barn: { r: 4.0, height: 3.5, hp: 1, points: 40, group: 'farm' },
         city: { r: 3.0, height: 12, hp: 3, points: 120, group: 'town' },
         barracks: { r: 5.0, height: 3.0, hp: 2, points: 120, group: 'army' },
         hangar: { r: 6.0, height: 5.0, hp: 3, points: 200, group: 'airfield' },
-        jet: { r: 3.0, height: 2.5, hp: 1, points: 150, group: 'airfield' },
-        ship: { r: 6.0, height: 3.0, hp: 4, points: 250, group: 'port', gun: { range: 800, cool: 2.6, speed: 280, type: 'cannon', dmg: 20, elev: 1.2, spread: 0.015 } },
+        jet: { r: 3.0, height: 2.5, hp: 1, points: 150, hostile: true, group: 'airfield' },
+        ship: { r: 6.0, height: 3.0, hp: 4, points: 250, hostile: true, group: 'port', gun: { range: 800, cool: 2.6, speed: 280, type: 'cannon', dmg: 20, elev: 1.2, spread: 0.015 } },
         rail: { r: 2.5, height: 2.5, hp: 1, points: 40, group: 'rail' },
-        fighter: { r: 4.5, height: 3.0, hp: 1, points: 200, group: 'air', gun: { range: 380, cool: 2.6, speed: 330, type: 'mg', dmg: 6, elev: 1.6, spread: 0.03 } },
+        fighter: { r: 4.5, height: 3.0, hp: 1, points: 200, hostile: true, group: 'air', gun: { range: 380, cool: 2.6, speed: 330, type: 'mg', dmg: 6, elev: 1.6, spread: 0.03 } },
         ally: { r: 3.0, height: 2.5, hp: 1, points: -300, group: 'air' },
         rival1: { r: 0.5, height: 0.3, hp: 1, points: 0, group: 'air' },
         rival2: { r: 0.5, height: 0.3, hp: 1, points: 0, group: 'air' },
@@ -163,13 +163,24 @@ var PA;
     // Which kinds drive along the road (and how fast, metres per second).
     PA.DRIVES = { tank_mbt: 3, tank_light: 6, apc: 6, truck: 9, fuel: 7 };
     // Is this a mission target? Ground places and vehicles count; ships, rail and the air do not.
+    // Is this a mission target? Enemy vehicles, guns and jets on the ground count; buildings,
+    // civilians, ships and the air do not (ships have their own mission).
     function isObjective(t) {
-        if (t.faction)
+        if (t.faction || !PA.KINDS[t.kind].hostile)
             return false;
         const group = PA.KINDS[t.kind].group;
-        return group === 'army' || group === 'farm' || group === 'town';
+        return group === 'army' || group === 'airfield';
     }
     PA.isObjective = isObjective;
+    // Can the plane lock a missile on it? Only enemies: fighters, and hostile ground and sea units.
+    // Buildings, farms, towns, trucks, rail, fuel, allies and rivals are neutral.
+    function isHostile(t) {
+        var _a;
+        if (t.faction)
+            return t.faction === 'enemy';
+        return !!((_a = PA.KINDS[t.kind]) === null || _a === void 0 ? void 0 : _a.hostile);
+    }
+    PA.isHostile = isHostile;
     function target(kind, X, Z, rand) {
         const info = PA.KINDS[kind];
         return {
@@ -192,10 +203,12 @@ var PA;
     PA.landSite = landSite;
     // Clusters of things in front of baseZ. Each cluster is one kind of place.
     // guns: whether the army, town and coast have anti-aircraft guns (missions decide this).
+    // Clusters are spread this far apart along the route, so a flight has room between them.
+    PA.SPACING = 220;
     function spawnTargets(rand, baseZ, count, guns = true) {
         const out = [];
         for (let i = 0; i < count; i++) {
-            const Z = baseZ + i * 120 + rand() * 60;
+            const Z = baseZ + i * PA.SPACING + rand() * 80;
             const roll = rand();
             const landX = landSite(rand);
             // Some vehicles drive along the road, north or south.
@@ -262,7 +275,7 @@ var PA;
     // An enemy fighter or an ally, flying in from far off.
     function spawnAir(rand, px, pz, enemy) {
         const bearing = (rand() - 0.5) * 1.2; // radians either side of the nose
-        const dist = 1100 + rand() * 200;
+        const dist = 1500 + rand() * 300;
         const X = px + Math.sin(bearing) * dist;
         const Z = pz + Math.cos(bearing) * dist;
         const h = 80 + rand() * 40;
@@ -277,6 +290,9 @@ var PA;
     }
     PA.spawnAir = spawnAir;
     PA.MISSIONS = [
+        { name: 'Dots', brief: 'Fly roughly over each dot, in order. The next one is lit on the radar.', goal: 'dots', count: 6, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+        { name: 'Rings', brief: 'Fly through each ring, in order. Nothing shoots at you on this one.', goal: 'rings', count: 8, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+        { name: 'Circuit', brief: 'Two laps of the circuit against two friends and two allied planes. Hold your speed.', goal: 'race', count: 2, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
         { name: 'Range Day', brief: 'Practice on the range. Three ground targets, no fighters, no guns.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
         { name: 'First Contact', brief: 'One fighter now and then. Hold the nose on a target until it locks.', goal: 'ground', count: 4, ships: 0, guns: false, start: 'takeoff', firstWave: 90, waveEvery: 90, wave: 2 },
         { name: 'Coast Watch', brief: 'Two ships off the coast, with flak on the shore.', goal: 'ship', count: 2, ships: 2, guns: true, start: 'takeoff', firstWave: 100, waveEvery: 80, wave: 2 },
@@ -295,6 +311,36 @@ var PA;
         return { ...base, count: base.count + loop, wave: base.wave > 0 ? base.wave + loop : 0 };
     }
     PA.missionFor = missionFor;
+    // Training courses (jet). Dots are flown roughly over, in order; rings are flown through, in order.
+    // They run north from the runway, spaced out so each one is a short climb-free glide away.
+    function trainingCourse(rand, count, dot) {
+        const out = [];
+        for (let i = 0; i < count; i++) {
+            const X = (rand() - 0.5) * 500;
+            const Z = 380 + i * (dot ? 300 : 200) + rand() * 60;
+            const h = dot ? 0 : 25 + rand() * 30;
+            out.push({ X, Z, h: groundAt(X, Z) + h, r: dot ? 40 : 10, passed: false, dot, yaw: dot ? undefined : 0 });
+        }
+        return out;
+    }
+    PA.trainingCourse = trainingCourse;
+    // The race circuit: a loop about 3.8 km round, to the west of the runway. The plane starts
+    // heading north on it, and the last gate sits on the start line, so one lap ends where it began.
+    PA.RACE_GATES = 8;
+    PA.RACE_OPTIMUM = 60; // m/s, about 115 knots: the speed the racers' pace is set against
+    function raceCircuit() {
+        const R = 600, cx = -600, cz = 0;
+        const out = [];
+        for (let i = 0; i < PA.RACE_GATES; i++) {
+            const a = ((i + 1) / PA.RACE_GATES) * Math.PI * 2;
+            const X = cx + R * Math.cos(a), Z = cz + R * Math.sin(a);
+            // The gate faces along the course: the tangent of the circle at this point.
+            const yaw = Math.atan2(-Math.sin(a), Math.cos(a));
+            out.push({ X, Z, h: groundAt(X, Z) + 60 + 15 * Math.sin(a * 2), r: 45, passed: false, yaw });
+        }
+        return out;
+    }
+    PA.raceCircuit = raceCircuit;
     function makeMission(mode, seed, spec = PA.MISSIONS[0]) {
         const rand = random(seed);
         if (mode === 'glider') {
@@ -309,11 +355,14 @@ var PA;
         if (mode === 'drone')
             return { mode, targets: [], hoops: droneCourse() };
         // The first clusters start well out, so there is room to fly before anything is in reach.
-        const targets = spawnTargets(rand, 520, 10, spec.guns);
+        const targets = spawnTargets(rand, 520, 12, spec.guns);
         for (let i = 0; i < spec.ships; i++) {
             targets.push(target('ship', PA.SEA_X + 140 + rand() * 160, 620 + i * 220 + rand() * 60, rand));
         }
-        return { mode, targets, hoops: [] };
+        const hoops = spec.goal === 'race' ? raceCircuit()
+            : spec.goal === 'dots' || spec.goal === 'rings' ? trainingCourse(rand, spec.count, spec.goal === 'dots')
+                : [];
+        return { mode, targets, hoops };
     }
     PA.makeMission = makeMission;
     // The drone race: a closed loop of gates over open fields, about 700 m round, low and high.
@@ -1857,6 +1906,9 @@ var PA;
 // warns of them, and a tight turn or chaff can break them off.
 var PA;
 (function (PA) {
+    const RACE_VARY = 0.15; // a jet racer's pace drops by up to this share, now and then
+    const RACE_SKILL = [0.5, 0.9]; // a jet racer's pace: this range of the optimum speed
+    const RACE_NAMES = ['Swift', 'Comet', 'Ace', 'Bolt']; // two friends, then two allied planes
     const DRONE_LAPS = 2;
     const DRONE_CRASH_PENALTY = 3;
     const RIVALS = [
@@ -1909,7 +1961,11 @@ var PA;
     const BREAK_FOR = 3.5; // it flies straight away this long, then comes back
     const ALLY_GUN_RANGE = 700; // allies shoot at enemy fighters inside this range
     const ALLY_COOL = 0.35;
-    const BASE_SPACING = 1400; // a defended base every this many metres along the route
+    const FLAK_FUSE = 18; // metres: a flak round bursts this close to the plane
+    const SHAKE_PER_DAMAGE = 1 / 40; // screen shake per point of hull damage (a missile shakes hard)
+    const SHAKE_DECAY = 1.5; // shake lost per second
+    const DAZZLE_DECAY = 0.25; // share of the pilot's vision lost to smoke that clears per second
+    const BASE_SPACING = 2000; // a defended base every this many metres along the route
     const KEEP_AHEAD = 6;
     class Game {
         constructor(settings) {
@@ -1961,6 +2017,8 @@ var PA;
             this.wrecks = []; // burning remains
             this.bases = []; // where each base's flag stands
             this.marks = [];
+            this.shake = 0; // 0-1: how hard the screen is shaking (damage)
+            this.dazzle = 0; // 0-1: how much the flak smoke hides the view
             this.warned = false;
             this.held = { fire: false, boost: false, missile: false };
             this.axes = { yaw: 0, pitch: 0 };
@@ -2000,6 +2058,8 @@ var PA;
                 this.plane.start(0, 0, PA.groundAt(0, 0) + 10, 50, 0.05, 0, CRUISE_THROTTLE);
             }
             this.phase = 'flying';
+            if (this.missionSpec.goal === 'race')
+                this.startJetRace();
             this.score = keepScore ? score : 0;
             this.kills = keepScore ? kills : 0;
             this.hull = this.missionSpec.start === 'return' && this.settings.mode === 'jet' ? 60 : 100;
@@ -2026,7 +2086,8 @@ var PA;
             this.objectiveKind = this.missionSpec.goal;
             this.objectiveDone = 0;
             this.missionCard = this.settings.mode === 'jet' ? 5 : 0;
-            for (let i = 0; i < this.settings.allies; i++) {
+            // Training and the race use their own planes; the allies are for the fights.
+            for (let i = 0; i < (this.isTraining() ? 0 : this.settings.allies); i++) {
                 this.mission.targets.push(PA.spawnAir(this.rand, 0, 0, false));
             }
             if (this.missionSpec.start === 'return' && this.settings.mode === 'jet') {
@@ -2044,6 +2105,8 @@ var PA;
             this.decoys = [];
             this.puffs = [];
             this.marks = [];
+            this.shake = 0;
+            this.dazzle = 0;
         }
         // A reload from ⚙️ (normal mode only): the gun and missiles come back, with a cooldown.
         reloadFromSettings() {
@@ -2084,6 +2147,8 @@ var PA;
             this.resupplied = Math.max(0, this.resupplied - dt);
             this.missionCard = Math.max(0, this.missionCard - dt);
             this.resupplyCool = Math.max(0, this.resupplyCool - dt);
+            this.shake = Math.max(0, this.shake - dt * SHAKE_DECAY);
+            this.dazzle = Math.max(0, this.dazzle - dt * DAZZLE_DECAY);
             if (this.phase === 'crashed') {
                 // A full reset: the plane is restocked and the mission starts again.
                 if (this.blink <= 0)
@@ -2136,6 +2201,15 @@ var PA;
                 this.updateShells(dt);
                 this.updateGunners(dt);
                 this.updateTag(dt);
+                if (this.race) {
+                    this.race.time += dt;
+                    this.checkGate();
+                    this.updateRivals(dt);
+                    this.updatePlace();
+                }
+                else {
+                    this.checkTraining();
+                }
                 this.updateObjective();
                 this.keepTargets();
                 this.emitDust();
@@ -2169,7 +2243,7 @@ var PA;
                 const [rx, rz, ry] = this.startPad(i + 1);
                 const t = { kind: r.kind, X: rx, Z: rz, h: PA.groundAt(rx, rz) + 0.15, alive: true, points: 0, hp: 1, cool: 0, vH: ry };
                 this.mission.targets.push(t);
-                this.rivals.push({ t, name: r.name, vmax: pace * r.pace, v: 0, dir: [Math.sin(ry), 0, Math.cos(ry)], lap: 1, next: 0, done: false });
+                this.rivals.push({ t, name: r.name, vmax: pace * r.pace, v: 0, dir: [Math.sin(ry), 0, Math.cos(ry)], lap: 1, next: 0, done: false, vary: 0, varyT: Infinity });
             });
         }
         updateDrone(dt) {
@@ -2259,7 +2333,12 @@ var PA;
                 dy /= dl;
                 dz /= dl;
                 const bend = r.dir[0] * dx + r.dir[1] * dy + r.dir[2] * dz;
-                const want = r.done ? 0 : r.vmax * (0.55 + 0.45 * Math.max(0, bend));
+                r.varyT -= dt;
+                if (r.varyT <= 0) {
+                    r.vary = this.rand();
+                    r.varyT = 1.5 + this.rand() * 2;
+                }
+                const want = r.done ? 0 : r.vmax * (1 - RACE_VARY * r.vary) * (0.55 + 0.45 * Math.max(0, bend));
                 r.v += Math.max(-8 * dt, Math.min(5 * dt, want - r.v));
                 const turn = Math.min(1, 3.5 * dt);
                 r.dir = [r.dir[0] + (dx - r.dir[0]) * turn, r.dir[1] + (dy - r.dir[1]) * turn, r.dir[2] + (dz - r.dir[2]) * turn];
@@ -2320,6 +2399,7 @@ var PA;
             this.phase = 'crashed';
             this.hull = 0;
             this.blink = BLINK_SECONDS;
+            this.shake = 1;
             this.explode(this.plane.X, this.plane.h, this.plane.Z, 26);
             this.onSound('crash');
         }
@@ -2329,6 +2409,7 @@ var PA;
             if (this.marks.length > 12)
                 this.marks.shift();
             this.hits++;
+            this.shake = Math.min(1, this.shake + dmg * SHAKE_PER_DAMAGE); // the harder the hit, the harder the screen shakes
             if (this.settings.invincible !== 1 && !this.felix) {
                 this.hull = Math.max(0, this.hull - dmg);
             }
@@ -2367,20 +2448,50 @@ var PA;
                 this.missileStock++;
             }
         }
+        isTraining() {
+            const goal = this.missionSpec.goal;
+            return goal === 'dots' || goal === 'rings' || goal === 'race';
+        }
+        // Finishing a mission (or the End mission button): the next one starts, fully restocked.
+        endMission() {
+            this.missionNumber++;
+            this.newFlight(this.seed + 1, true, true);
+        }
         // Mission objective: destroy a number of ground targets. Finishing restocks everything.
         updateObjective() {
             if (this.objectiveDone < this.objectiveGoal)
                 return;
-            this.missionNumber++;
             this.score += 500;
-            this.ammo = PA.AMMO_MAX;
-            this.missileStock = PA.MISSILE_MAX;
-            this.chaff = PA.CHAFF_MAX;
-            this.hull = 100;
-            this.hits = 0;
             this.resupplied = 4;
             this.onSound('chime');
-            this.newFlight(this.seed + 1, true, true);
+            this.endMission();
+        }
+        // Training in order: the next dot or ring counts once the plane is close enough to it.
+        checkTraining() {
+            const next = this.mission.hoops.find(h => !h.passed);
+            if (!next)
+                return;
+            const p = this.plane;
+            const dx = p.X - next.X, dz = p.Z - next.Z, dh = next.dot ? 0 : p.h - next.h;
+            if (dx * dx + dz * dz + dh * dh > next.r * next.r)
+                return;
+            next.passed = true;
+            this.hoopsPassed++;
+            this.objectiveDone++;
+            this.score += 100;
+            this.onSound('chime');
+        }
+        // The jet race: two friends and two allied planes, each at its own share of the optimum speed.
+        startJetRace() {
+            this.race = { laps: 2, lap: 1, next: 0, time: 0, countdown: 0, crashes: 0, place: RACE_NAMES.length + 1, finished: false, results: [] };
+            RACE_NAMES.forEach((name, i) => {
+                const X = (i % 2 ? 8 : -8), Z = -16 - i * 14;
+                const h = PA.groundAt(X, Z) + 60;
+                const vmax = PA.RACE_OPTIMUM * (RACE_SKILL[0] + (RACE_SKILL[1] - RACE_SKILL[0]) * this.rand());
+                const t = { kind: 'ally', X, Z, h, alive: true, points: 0, hp: 1, cool: 0, faction: 'ally', vH: 0 };
+                this.mission.targets.push(t);
+                this.rivals.push({ t, name, vmax, v: vmax * 0.8, dir: [0, 0, 1], lap: 1, next: 0, done: false, vary: 0, varyT: 0 });
+            });
         }
         // Fighters in one wave: the mission's number, scaled by the setting (2 is full, 1 is half).
         // Felix (easy) has half of that again, but never fewer than one.
@@ -2409,6 +2520,8 @@ var PA;
                     this.mission.targets.push(PA.spawnAir(this.rand, this.plane.X, this.plane.Z, true));
                 }
             }
+            if (this.isTraining())
+                return;
             const allies = this.mission.targets.filter(t => t.faction === 'ally' && t.alive).length;
             if (allies + this.allyTimers.length < this.settings.allies) {
                 this.allyTimers.push(FRIEND_RESPAWN);
@@ -2611,7 +2724,8 @@ var PA;
                 life: SHELL_LIFE,
                 warn,
                 dmg: gun.dmg,
-                r: gun.type === 'flak' ? 9 : gun.type === 'cannon' ? 4 : 3,
+                r: gun.type === 'flak' ? FLAK_FUSE : gun.type === 'cannon' ? 4 : 3,
+                flak: gun.type === 'flak',
             });
             this.flash(t.X, gy, t.Z, '#ffd27a');
             this.onSound('thud');
@@ -2623,7 +2737,7 @@ var PA;
             let best = null;
             let bestD = MISSILE_RANGE;
             for (const t of this.mission.targets) {
-                if (!t.alive || t.faction === 'ally')
+                if (!t.alive || !PA.isHostile(t))
                     continue;
                 const dx = t.X - p.X, dz = t.Z - p.Z;
                 const d = Math.hypot(dx, dz);
@@ -2905,7 +3019,7 @@ var PA;
             let best = null;
             let bestD = GROUND_RANGE;
             for (const t of this.mission.targets) {
-                if (!t.alive)
+                if (!t.alive || !PA.isHostile(t))
                     continue;
                 const dx = t.X - p.X, dz = t.Z - p.Z;
                 const d = Math.hypot(dx, dz);
@@ -2998,8 +3112,8 @@ var PA;
                 for (const t of this.mission.targets) {
                     if (!t.alive)
                         continue;
-                    // An ally's bullet only hits enemies; the player's never hit allies.
-                    if (s.friendly ? t.faction !== 'enemy' : t.faction === 'ally')
+                    // An ally's bullet only hits enemies; the player's only hit what is hostile (never buildings or civilians).
+                    if (s.friendly ? t.faction !== 'enemy' : !PA.isHostile(t))
                         continue;
                     const info = PA.KINDS[t.kind];
                     const dx = s.X - t.X, dz = s.Z - t.Z;
@@ -3073,7 +3187,10 @@ var PA;
                 const r = (_a = s.r) !== null && _a !== void 0 ? _a : 3;
                 if (d < r) {
                     this.takeHit(s.dmg);
-                    this.explode(s.X, s.h, s.Z, 6);
+                    if (s.flak)
+                        this.flakBurst(s, d);
+                    else
+                        this.explode(s.X, s.h, s.Z, 6);
                     this.onSound('thud');
                     continue;
                 }
@@ -3082,6 +3199,21 @@ var PA;
             this.shells = keep;
             if (!this.shells.some(s => s.warn))
                 this.warned = false;
+        }
+        // A flak round bursts by its fuse: a dark cloud where it goes off. The closer the burst,
+        // the more the smoke hides the view, and the more the screen jolts.
+        flakBurst(s, d) {
+            const close = 1 - Math.min(1, d / FLAK_FUSE);
+            this.dazzle = Math.min(0.9, Math.max(this.dazzle, 0.35 + 0.6 * close));
+            this.shake = Math.min(1, this.shake + 0.2 * close);
+            for (let i = 0; i < 8; i++) {
+                const a = this.rand() * Math.PI * 2, sp = 2 + this.rand() * 5;
+                this.puffs.push({
+                    X: s.X, h: s.h, Z: s.Z, vX: Math.cos(a) * sp, vY: 1 + this.rand() * 4, vZ: Math.sin(a) * sp,
+                    life: 0.9 + this.rand() * 0.6, max: 1.5, color: '#4a4252', size: 4 + this.rand() * 4, kind: 'smoke',
+                });
+            }
+            this.flash(s.X, s.h, s.Z, '#ffe2a0');
         }
         keepTargets() {
             const m = this.mission;
@@ -4238,12 +4370,55 @@ var PA;
         }
     }
     // Glider rings: glowing hoops standing across the heading.
+    // A training dot: a flat coloured disc on the ground with a beacon and its number, so you can
+    // read the order at a glance. The next one is yellow, the one after it orange, flown ones green.
+    function dotMarker(ctx, c, dot, idx, lit, after) {
+        const p = project(c, dot.X, PA.groundAt(dot.X, dot.Z) + 0.5, dot.Z);
+        if (!p)
+            return;
+        const depth = p[2];
+        const radius = Math.max(3, Math.min(60, dot.r * FOCAL / depth));
+        const beacon = Math.max(4, Math.min(80, 30 * FOCAL / depth));
+        const colour = lit ? '#ffe94a' : after ? '#ffc58a' : dot.passed ? '#7fe0a0' : '#ffb08a';
+        ctx.globalAlpha = fogAlpha(depth);
+        ctx.fillStyle = dot.passed ? 'rgba(127,224,160,0.35)' : 'rgba(255,240,150,0.4)';
+        ctx.beginPath();
+        ctx.ellipse(p[0], p[1], radius, radius * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = PA.INK;
+        ctx.lineWidth = Math.max(1, radius * 0.08);
+        ctx.beginPath();
+        ctx.moveTo(p[0], p[1]);
+        ctx.lineTo(p[0], p[1] - beacon);
+        ctx.stroke();
+        ctx.fillStyle = colour;
+        ctx.beginPath();
+        ctx.arc(p[0], p[1] - beacon, Math.max(2, radius * 0.22), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = PA.INK;
+        ctx.stroke();
+        const size = Math.max(7, Math.min(22, 10 * FOCAL / depth * 0.6));
+        ctx.font = 'bold ' + Math.round(size) + 'px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(255,253,247,0.95)';
+        ctx.strokeText(String(idx + 1), p[0], p[1] - beacon - size * 0.6);
+        ctx.fillStyle = PA.INK;
+        ctx.fillText(String(idx + 1), p[0], p[1] - beacon - size * 0.6);
+        ctx.textAlign = 'start';
+        ctx.globalAlpha = 1;
+    }
     function rings(ctx, g, c) {
         var _a;
-        const next = g.race && !g.race.finished ? g.race.next : -1;
+        const inOrder = g.race ? !g.race.finished : g.missionSpec.goal === 'dots' || g.missionSpec.goal === 'rings';
+        const next = g.race && !g.race.finished ? g.race.next : inOrder ? g.mission.hoops.findIndex(h => !h.passed) : -1;
         const hoops = g.mission.hoops;
         for (let idx = 0; idx < hoops.length; idx++) {
             const ring = hoops[idx];
+            if (ring.dot) {
+                dotMarker(ctx, c, ring, idx, idx === next, idx === next + 1);
+                continue;
+            }
             // Drone gates face along the course; glider rings always face the plane.
             const ry = (_a = ring.yaw) !== null && _a !== void 0 ? _a : g.plane.yaw;
             const rhx = Math.cos(ry), rhz = -Math.sin(ry);
@@ -4666,6 +4841,15 @@ var PA;
     }
     // How long each stage took on the last frame, in milliseconds (for tuning).
     PA.renderStats = { background: 0, objects: 0, total: 0, things: 0 };
+    // Flak smoke in the pilot's view: a grey veil that fades as the smoke clears.
+    function dazzleVeil(ctx, g) {
+        if (g.dazzle <= 0)
+            return;
+        ctx.globalAlpha = Math.min(0.85, g.dazzle);
+        ctx.fillStyle = '#d8d2c6';
+        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.globalAlpha = 1;
+    }
     function render(ctx, g) {
         const t0 = performance.now();
         PA.cacheFrame();
@@ -4679,7 +4863,7 @@ var PA;
         birds(ctx, g, c);
         const t2 = performance.now();
         const droneMode = g.settings.mode === 'drone';
-        if ((g.settings.view !== 'cockpit' || droneMode) && (g.mission.mode === 'glider' || droneMode))
+        if ((g.settings.view !== 'cockpit' || droneMode) && (g.mission.mode === 'glider' || droneMode || g.mission.hoops.length > 0))
             rings(ctx, g, c);
         tracers(ctx, c, g.shots, 'rgba(255,236,150,0.95)', 0.35);
         tracers(ctx, c, g.shells, 'rgba(255,150,90,0.9)', 0.5);
@@ -4704,6 +4888,7 @@ var PA;
         if (g.settings.forces)
             forces(ctx, g);
         ctx.drawImage(textures().vignette, 0, 0);
+        dazzleVeil(ctx, g);
         const t3 = performance.now();
         PA.renderStats.background = PA.renderStats.background * 0.9 + (t1 - t0) * 0.1;
         // A slow device paints the ground every other column; a fast one goes back to every pixel.
@@ -4731,7 +4916,7 @@ var PA;
         air: '#8fe0bd',
     };
     function radar(ctx, g, size) {
-        var _a;
+        var _a, _b;
         const c = size / 2, R = size / 2 - 3;
         ctx.clearRect(0, 0, size, size);
         ctx.save();
@@ -4757,9 +4942,13 @@ var PA;
                 return null;
             return [c + (r / RANGE) * R, c - (f / RANGE) * R];
         };
-        // Mission targets beyond the rim: an arrow on the rim pointing toward each one.
-        for (const t of g.mission.targets) {
-            if (!t.alive || !g.countsForObjective(t) || place(t.X, t.Z))
+        // Mission targets beyond the rim, and the next training dot or ring: an arrow on the rim toward each.
+        const rim = g.mission.targets.filter(t => t.alive && g.countsForObjective(t));
+        const nextHoop = g.mission.hoops.find(h => !h.passed);
+        if (nextHoop && !g.race)
+            rim.push(nextHoop);
+        for (const t of rim) {
+            if (place(t.X, t.Z))
                 continue;
             const dx = t.X - p.X, dz = t.Z - p.Z;
             const f = dx * sinY + dz * cosY;
@@ -4795,7 +4984,7 @@ var PA;
             else if (t.orbit)
                 heading = Math.atan2(-Math.sin(t.orbit.ang), Math.cos(t.orbit.ang));
             else
-                heading = 0;
+                heading = (_b = t.vH) !== null && _b !== void 0 ? _b : 0;
             // Turn the heading into a direction on the radar (up is the plane's nose).
             const rel = heading - p.yaw;
             const dx2 = Math.sin(rel), dy2 = -Math.cos(rel);
@@ -4825,15 +5014,33 @@ var PA;
             ctx.fillStyle = t.faction === 'enemy' ? '#ff6b6b' : gunner ? '#ffb02e' : DOT[info ? info.group : 'army'];
             ctx.fillRect(Math.round(q[0]) - 2, Math.round(q[1]) - 2, 4, 4);
         }
-        for (const h of g.mission.hoops) {
+        const inOrder = !g.race && (g.missionSpec.goal === 'dots' || g.missionSpec.goal === 'rings');
+        g.mission.hoops.forEach((h, idx) => {
             if (h.passed)
-                continue;
+                return;
             const q = place(h.X, h.Z);
-            if (q) {
+            if (!q)
+                return;
+            if (!inOrder) {
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(Math.round(q[0]) - 1, Math.round(q[1]) - 1, 3, 3);
+                return;
             }
-        }
+            // Training in order: each one is numbered; the next one is lit.
+            const next = idx === g.mission.hoops.findIndex(x => !x.passed);
+            ctx.fillStyle = next ? '#ffe94a' : '#ffffff';
+            ctx.strokeStyle = PA.INK;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(q[0], q[1], next ? 5 : 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            if (next || idx < 9) {
+                ctx.font = 'bold 9px system-ui, sans-serif';
+                ctx.fillStyle = PA.INK;
+                ctx.fillText(String(idx + 1), q[0] + 6, q[1] + 3);
+            }
+        });
         // The plane: a point at the centre, pointing up (the heading).
         ctx.fillStyle = PA.INK;
         ctx.beginPath();
@@ -5090,7 +5297,7 @@ var PA;
             : 'Lap ' + Math.min(r.lap, r.laps) + '/' + r.laps + ' · gate ' + (r.next + 1) + '/' + gates + ' · ' + clock(r.time) + ' · ' + ordinal(r.place) + ' of ' + (g.rivals.length + 1);
         cd.hidden = !(r.countdown > 0 || r.time < 0.8);
         cd.textContent = r.countdown > 0 ? String(Math.ceil(r.countdown)) : 'GO!';
-        if (r.finished && !bestSaved) {
+        if (r.finished && !bestSaved && g.settings.mode === 'drone') {
             bestSaved = true;
             const kind = g.drone.kind;
             const best = loadBest(kind);
@@ -5387,11 +5594,8 @@ var PA;
         const spec = g.missionSpec;
         $('missionTitle').textContent = 'Mission ' + g.missionNumber + ': ' + spec.name;
         $('missionBody').textContent = spec.brief + ' Arrows on the radar point to the targets.';
-        $('objective').textContent = g.resupplied > 0
-            ? 'Mission complete! Everything restocked.'
-            : g.settings.mode === 'glider' ? ''
-                : 'Mission ' + g.missionNumber + ': ' + (g.objectiveKind === 'air' ? 'shoot down ' : 'destroy ') + left + ' more '
-                    + (g.objectiveKind === 'air' ? 'fighter' : g.objectiveKind === 'ship' ? 'ship' : 'ground target') + (left === 1 ? '' : 's');
+        $('objective').textContent = g.resupplied > 0 ? 'Mission complete! Everything restocked.' : objectiveText(g, left);
+        $('endMission').hidden = g.settings.mode !== 'jet' || g.phase !== 'flying';
         const cool = Math.ceil(g.resupplyCool);
         $('reloadBtn').toggleAttribute('disabled', g.felix || cool > 0);
         $('reloadHint').textContent = g.felix ? 'Felix mode never runs out, so no reload is needed.'
@@ -5406,6 +5610,22 @@ var PA;
         $('alt').textContent = Math.round(p.h - PA.groundAt(p.X, p.Z)) + ' m';
         $('aoa').textContent = (p.alpha * 180 / Math.PI).toFixed(0) + '°';
         $('stall').hidden = !p.stalled || g.phase !== 'flying';
+    }
+    // What the objective line says for each kind of mission.
+    function objectiveText(g, left) {
+        const goal = g.missionSpec.goal;
+        if (g.settings.mode === 'glider')
+            return '';
+        if (g.race) {
+            const r = g.race;
+            return 'Lap ' + Math.min(r.lap, r.laps) + ' of ' + r.laps + ' · gate ' + (r.next + 1) + ' of ' + g.mission.hoops.length + ' · ' + ordinal(r.place);
+        }
+        if (goal === 'dots' || goal === 'rings') {
+            const n = g.mission.hoops.length;
+            return (goal === 'dots' ? 'Dot ' : 'Ring ') + Math.min(n, g.hoopsPassed + 1) + ' of ' + n;
+        }
+        return 'Mission ' + g.missionNumber + ': ' + (goal === 'air' ? 'shoot down ' : 'destroy ') + left + ' more '
+            + (goal === 'air' ? 'fighter' : goal === 'ship' ? 'ship' : 'ground target') + (left === 1 ? '' : 's');
     }
     function message() {
         const g = game;
@@ -5427,6 +5647,8 @@ var PA;
         }
         if (g.tagged)
             return 'Missile on you! Hard turn to break it, or drop CHAFF.';
+        if (g.dazzle > 0.3)
+            return 'Flak! The smoke hides the view. Keep flying straight.';
         if (g.floorActive)
             return 'Safe flight: pulling up off the ground.';
         if (settings.invincible === 1)
@@ -5435,6 +5657,12 @@ var PA;
             return 'Too steep! Ease the nose down to get the air flowing.';
         if (g.settings.mode === 'glider')
             return 'Fly through the rings.';
+        if (g.missionSpec.goal === 'dots')
+            return 'Fly roughly over the lit dot. No shooting, no hurry.';
+        if (g.missionSpec.goal === 'rings')
+            return 'Fly through the lit ring. Hold height and line up.';
+        if (g.race && !g.race.finished)
+            return 'Race: keep the lit gate in the middle of the screen.';
         if (p.vy < -2 && p.h - PA.groundAt(p.X, p.Z) < 25)
             return 'Losing height: nose up or hold BOOST.';
         return 'Drag from the middle to steer. FIRE the gun, MISSILE for a target ahead.';
@@ -5449,11 +5677,13 @@ var PA;
         box.hidden = false;
         if (g.race) {
             const r = g.race;
-            const best = loadBest(g.drone.kind);
+            const best = g.settings.mode === 'drone' ? loadBest(g.drone.kind) : 0;
             $('ovTitle').textContent = 'Race finished: ' + ordinal(r.place) + '!';
             $('ovText').textContent = 'Time ' + clock(r.time) + (r.crashes ? ' (with ' + r.crashes + ' crash' + (r.crashes > 1 ? 'es' : '') + ')' : '') + (best ? '. Best ' + clock(best) : '') + '. ' + r.results.map((x, i) => (i + 1) + '. ' + x.name + ' ' + clock(x.time)).join('  ');
+            $('again').textContent = g.settings.mode === 'jet' ? 'Next mission ▸' : 'Fly again';
             return;
         }
+        $('again').textContent = 'Fly again';
         $('ovTitle').textContent = 'Landed!';
         $('ovText').textContent = 'Rings flown: ' + g.hoopsPassed + ' of ' + g.mission.hoops.length + '.';
     }
@@ -5652,6 +5882,23 @@ var PA;
     }
     let last = 0;
     let hudTimer = 0;
+    // The view wobbles when the plane is hit: the harder the hit, the harder the shake.
+    let shaking = false;
+    function shakeView(g) {
+        const view = $('view');
+        const s = g.shake;
+        if (s <= 0.01) {
+            if (shaking) {
+                view.style.transform = '';
+                shaking = false;
+            }
+            return;
+        }
+        shaking = true;
+        const amp = s * s * 12; // screen pixels: a small hit wobbles, a missile shakes hard
+        const dx = (Math.random() - 0.5) * 2 * amp, dy = (Math.random() - 0.5) * 2 * amp;
+        view.style.transform = 'translate(' + dx.toFixed(1) + 'px, ' + dy.toFixed(1) + 'px) scale(1.03)';
+    }
     function frame(now) {
         const dt = last ? (now - last) / 1000 : 0;
         last = now;
@@ -5663,6 +5910,7 @@ var PA;
             const ctx = $('view').getContext('2d');
             if (ctx)
                 PA.render(ctx, game);
+            shakeView(game);
             const rc = $('radar').getContext('2d');
             if (rc)
                 PA.radar(rc, game, 150);
@@ -5708,7 +5956,14 @@ var PA;
         $('familyPassword').addEventListener('keydown', e => { if (e.key === 'Enter')
             void familySignIn(); });
         renderFamily();
-        $('again').addEventListener('click', () => restart());
+        $('again').addEventListener('click', () => {
+            // After a jet race the button goes on to the next mission; otherwise it flies again.
+            if (game.race && game.settings.mode === 'jet')
+                game.endMission();
+            else
+                restart();
+        });
+        $('endMission').addEventListener('click', () => game.endMission());
         $('version').textContent = 'Version ' + PA.VERSION;
         applySound();
         bindKeys();

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Paper Airplanes × A-10 Warthog</title>
-  <link rel="stylesheet" href="css/app.css?v=0.22">
+  <link rel="stylesheet" href="css/app.css?v=0.23">
 </head>
 <body>
   <main class="play" id="play">
@@ -30,6 +30,7 @@
 
     <p class="msg" id="msg" aria-live="polite"></p>
     <p class="objective" id="objective" aria-live="polite"></p>
+    <button class="endMission" id="endMission" type="button" hidden>End mission ▸</button>
     <div class="missionCard" id="missionCard" hidden>
       <h2 id="missionTitle"></h2>
       <p id="missionBody"></p>
@@ -335,6 +336,6 @@
 
   <div class="errorsPanel" id="errorsPanel" hidden></div>
 
-  <script src="js/game.js?v=0.22"></script>
+  <script src="js/game.js?v=0.23"></script>
 </body>
 </html>

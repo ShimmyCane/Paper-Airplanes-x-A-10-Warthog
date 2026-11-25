@@ -1,6 +1,6 @@
 // Shared numbers for the whole game. Change a number here, rebuild, reload.
 namespace PA {
-  export const VERSION = '0.22 (2026-11-22: calm missions silent, no backward flight, default lever 60%, pitch limit)';
+  export const VERSION = '0.23 (2026-11-25: training dots, rings and a circuit race; flak bursts; screen shake; hostile-only lock)';
 
   // Internal resolution. The canvas is small on purpose: every pixel is a
   // "pixel-art pixel", and the page scales it up with no smoothing.

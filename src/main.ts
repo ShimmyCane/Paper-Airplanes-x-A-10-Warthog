@@ -225,7 +225,7 @@ namespace PA {
       : 'Lap ' + Math.min(r.lap, r.laps) + '/' + r.laps + ' · gate ' + (r.next + 1) + '/' + gates + ' · ' + clock(r.time) + ' · ' + ordinal(r.place) + ' of ' + (g.rivals.length + 1);
     cd.hidden = !(r.countdown > 0 || r.time < 0.8);
     cd.textContent = r.countdown > 0 ? String(Math.ceil(r.countdown)) : 'GO!';
-    if (r.finished && !bestSaved) {
+    if (r.finished && !bestSaved && g.settings.mode === 'drone') {
       bestSaved = true;
       const kind = g.drone.kind;
       const best = loadBest(kind);
@@ -519,11 +519,8 @@ namespace PA {
     const spec = g.missionSpec;
     $('missionTitle').textContent = 'Mission ' + g.missionNumber + ': ' + spec.name;
     $('missionBody').textContent = spec.brief + ' Arrows on the radar point to the targets.';
-    $('objective').textContent = g.resupplied > 0
-      ? 'Mission complete! Everything restocked.'
-      : g.settings.mode === 'glider' ? ''
-      : 'Mission ' + g.missionNumber + ': ' + (g.objectiveKind === 'air' ? 'shoot down ' : 'destroy ') + left + ' more '
-        + (g.objectiveKind === 'air' ? 'fighter' : g.objectiveKind === 'ship' ? 'ship' : 'ground target') + (left === 1 ? '' : 's');
+    $('objective').textContent = g.resupplied > 0 ? 'Mission complete! Everything restocked.' : objectiveText(g, left);
+    $<HTMLButtonElement>('endMission').hidden = g.settings.mode !== 'jet' || g.phase !== 'flying';
     const cool = Math.ceil(g.resupplyCool);
     $('reloadBtn').toggleAttribute('disabled', g.felix || cool > 0);
     $('reloadHint').textContent = g.felix ? 'Felix mode never runs out, so no reload is needed.'
@@ -540,6 +537,22 @@ namespace PA {
     $('stall').hidden = !p.stalled || g.phase !== 'flying';
   }
 
+  // What the objective line says for each kind of mission.
+  function objectiveText(g: Game, left: number): string {
+    const goal = g.missionSpec.goal;
+    if (g.settings.mode === 'glider') return '';
+    if (g.race) {
+      const r = g.race;
+      return 'Lap ' + Math.min(r.lap, r.laps) + ' of ' + r.laps + ' · gate ' + (r.next + 1) + ' of ' + g.mission.hoops.length + ' · ' + ordinal(r.place);
+    }
+    if (goal === 'dots' || goal === 'rings') {
+      const n = g.mission.hoops.length;
+      return (goal === 'dots' ? 'Dot ' : 'Ring ') + Math.min(n, g.hoopsPassed + 1) + ' of ' + n;
+    }
+    return 'Mission ' + g.missionNumber + ': ' + (goal === 'air' ? 'shoot down ' : 'destroy ') + left + ' more '
+      + (goal === 'air' ? 'fighter' : goal === 'ship' ? 'ship' : 'ground target') + (left === 1 ? '' : 's');
+  }
+
   function message(): string {
     const g = game;
     const p = g.plane;
@@ -554,10 +567,14 @@ namespace PA {
       return 'Fly the lit gate. ' + (sp.assist === 'gps' ? 'Let go and the drone stops.' : sp.assist === 'althold' ? 'It holds its height.' : 'The throttle is yours.');
     }
     if (g.tagged) return 'Missile on you! Hard turn to break it, or drop CHAFF.';
+    if (g.dazzle > 0.3) return 'Flak! The smoke hides the view. Keep flying straight.';
     if (g.floorActive) return 'Safe flight: pulling up off the ground.';
     if (settings.invincible === 1) return 'Invincible: nothing can hurt you.';
     if (p.stalled) return 'Too steep! Ease the nose down to get the air flowing.';
     if (g.settings.mode === 'glider') return 'Fly through the rings.';
+    if (g.missionSpec.goal === 'dots') return 'Fly roughly over the lit dot. No shooting, no hurry.';
+    if (g.missionSpec.goal === 'rings') return 'Fly through the lit ring. Hold height and line up.';
+    if (g.race && !g.race.finished) return 'Race: keep the lit gate in the middle of the screen.';
     if (p.vy < -2 && p.h - groundAt(p.X, p.Z) < 25) return 'Losing height: nose up or hold BOOST.';
     return 'Drag from the middle to steer. FIRE the gun, MISSILE for a target ahead.';
   }
@@ -572,11 +589,13 @@ namespace PA {
     box.hidden = false;
     if (g.race) {
       const r = g.race;
-      const best = loadBest(g.drone.kind);
+      const best = g.settings.mode === 'drone' ? loadBest(g.drone.kind) : 0;
       $('ovTitle').textContent = 'Race finished: ' + ordinal(r.place) + '!';
       $('ovText').textContent = 'Time ' + clock(r.time) + (r.crashes ? ' (with ' + r.crashes + ' crash' + (r.crashes > 1 ? 'es' : '') + ')' : '') + (best ? '. Best ' + clock(best) : '') + '. ' + r.results.map((x, i) => (i + 1) + '. ' + x.name + ' ' + clock(x.time)).join('  ');
+      $('again').textContent = g.settings.mode === 'jet' ? 'Next mission ▸' : 'Fly again';
       return;
     }
+    $('again').textContent = 'Fly again';
     $('ovTitle').textContent = 'Landed!';
     $('ovText').textContent = 'Rings flown: ' + g.hoopsPassed + ' of ' + g.mission.hoops.length + '.';
   }
@@ -782,6 +801,21 @@ namespace PA {
 
   let last = 0;
   let hudTimer = 0;
+  // The view wobbles when the plane is hit: the harder the hit, the harder the shake.
+  let shaking = false;
+  function shakeView(g: Game): void {
+    const view = $<HTMLCanvasElement>('view');
+    const s = g.shake;
+    if (s <= 0.01) {
+      if (shaking) { view.style.transform = ''; shaking = false; }
+      return;
+    }
+    shaking = true;
+    const amp = s * s * 12;   // screen pixels: a small hit wobbles, a missile shakes hard
+    const dx = (Math.random() - 0.5) * 2 * amp, dy = (Math.random() - 0.5) * 2 * amp;
+    view.style.transform = 'translate(' + dx.toFixed(1) + 'px, ' + dy.toFixed(1) + 'px) scale(1.03)';
+  }
+
   function frame(now: number): void {
     const dt = last ? (now - last) / 1000 : 0;
     last = now;
@@ -791,6 +825,7 @@ namespace PA {
       game.update(dt);
       const ctx = $<HTMLCanvasElement>('view').getContext('2d');
       if (ctx) render(ctx, game);
+      shakeView(game);
       const rc = $<HTMLCanvasElement>('radar').getContext('2d');
       if (rc) radar(rc, game, 150);
       sound.setFlight(game.held.boost, game.phase === 'flying' && game.settings.mode === 'jet', Math.abs(game.axes.yaw));
@@ -836,7 +871,12 @@ namespace PA {
     $('familySignOut').addEventListener('click', () => void signOut().then(renderFamily));
     $('familyPassword').addEventListener('keydown', e => { if (e.key === 'Enter') void familySignIn(); });
     renderFamily();
-    $('again').addEventListener('click', () => restart());
+    $('again').addEventListener('click', () => {
+      // After a jet race the button goes on to the next mission; otherwise it flies again.
+      if (game.race && game.settings.mode === 'jet') game.endMission();
+      else restart();
+    });
+    $('endMission').addEventListener('click', () => game.endMission());
     $('version').textContent = 'Version ' + VERSION;
 
     applySound();

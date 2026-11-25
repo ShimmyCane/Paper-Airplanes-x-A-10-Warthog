@@ -110,26 +110,27 @@ namespace PA {
   export interface KindInfo {
     r: number; height: number; hp: number; points: number;
     gun?: Gun;
+    hostile?: boolean;   // an enemy unit or gun: the only things the missile can lock on to
     group: 'army' | 'farm' | 'town' | 'airfield' | 'port' | 'rail' | 'air';
   }
 
   export const KINDS: { [k: string]: KindInfo } = {
-    tank_mbt:   { r: 2.6, height: 2.6, hp: 2, points: 100, group: 'army', gun: { range: 350, cool: 1.4, speed: 320, type: 'mg', dmg: 4, elev: 0.3, spread: 0.05 } },
-    tank_light: { r: 2.2, height: 2.0, hp: 1, points: 60, group: 'army', gun: { range: 320, cool: 1.6, speed: 320, type: 'mg', dmg: 4, elev: 0.3, spread: 0.05 } },
-    apc:        { r: 2.4, height: 2.2, hp: 1, points: 50, group: 'army', gun: { range: 320, cool: 1.2, speed: 320, type: 'mg', dmg: 4, elev: 0.6, spread: 0.06 } },
+    tank_mbt:   { r: 2.6, height: 2.6, hp: 2, points: 100, hostile: true, group: 'army', gun: { range: 350, cool: 1.4, speed: 320, type: 'mg', dmg: 4, elev: 0.3, spread: 0.05 } },
+    tank_light: { r: 2.2, height: 2.0, hp: 1, points: 60, hostile: true, group: 'army', gun: { range: 320, cool: 1.6, speed: 320, type: 'mg', dmg: 4, elev: 0.3, spread: 0.05 } },
+    apc:        { r: 2.4, height: 2.2, hp: 1, points: 50, hostile: true, group: 'army', gun: { range: 320, cool: 1.2, speed: 320, type: 'mg', dmg: 4, elev: 0.6, spread: 0.06 } },
     truck:      { r: 2.0, height: 2.6, hp: 1, points: 40, group: 'farm' },
     fuel:       { r: 2.6, height: 2.6, hp: 1, points: 60, group: 'airfield' },
-    sam:        { r: 3.0, height: 3.5, hp: 2, points: 150, group: 'army', gun: { range: 1100, cool: 10, speed: 170, type: 'sam', dmg: 45, elev: 1.5, spread: 0 } },
-    flak:       { r: 2.0, height: 3.0, hp: 1, points: 80, group: 'army', gun: { range: 650, cool: 1.8, speed: 240, type: 'flak', dmg: 12, elev: 1.5, spread: 0.025 } },
+    sam:        { r: 3.0, height: 3.5, hp: 2, points: 150, hostile: true, group: 'army', gun: { range: 1100, cool: 10, speed: 170, type: 'sam', dmg: 45, elev: 1.5, spread: 0 } },
+    flak:       { r: 2.0, height: 3.0, hp: 1, points: 80, hostile: true, group: 'army', gun: { range: 650, cool: 1.8, speed: 240, type: 'flak', dmg: 12, elev: 1.5, spread: 0.025 } },
     farm:       { r: 4.0, height: 4.0, hp: 1, points: 30, group: 'farm' },
     barn:       { r: 4.0, height: 3.5, hp: 1, points: 40, group: 'farm' },
     city:       { r: 3.0, height: 12, hp: 3, points: 120, group: 'town' },
     barracks:   { r: 5.0, height: 3.0, hp: 2, points: 120, group: 'army' },
     hangar:     { r: 6.0, height: 5.0, hp: 3, points: 200, group: 'airfield' },
-    jet:        { r: 3.0, height: 2.5, hp: 1, points: 150, group: 'airfield' },
-    ship:       { r: 6.0, height: 3.0, hp: 4, points: 250, group: 'port', gun: { range: 800, cool: 2.6, speed: 280, type: 'cannon', dmg: 20, elev: 1.2, spread: 0.015 } },
+    jet:        { r: 3.0, height: 2.5, hp: 1, points: 150, hostile: true, group: 'airfield' },
+    ship:       { r: 6.0, height: 3.0, hp: 4, points: 250, hostile: true, group: 'port', gun: { range: 800, cool: 2.6, speed: 280, type: 'cannon', dmg: 20, elev: 1.2, spread: 0.015 } },
     rail:       { r: 2.5, height: 2.5, hp: 1, points: 40, group: 'rail' },
-    fighter:    { r: 4.5, height: 3.0, hp: 1, points: 200, group: 'air', gun: { range: 380, cool: 2.6, speed: 330, type: 'mg', dmg: 6, elev: 1.6, spread: 0.03 } },
+    fighter:    { r: 4.5, height: 3.0, hp: 1, points: 200, hostile: true, group: 'air', gun: { range: 380, cool: 2.6, speed: 330, type: 'mg', dmg: 6, elev: 1.6, spread: 0.03 } },
     ally:       { r: 3.0, height: 2.5, hp: 1, points: -300, group: 'air' },
     rival1:     { r: 0.5, height: 0.3, hp: 1, points: 0, group: 'air' },
     rival2:     { r: 0.5, height: 0.3, hp: 1, points: 0, group: 'air' },
@@ -140,10 +141,19 @@ namespace PA {
   export const DRIVES: { [k: string]: number } = { tank_mbt: 3, tank_light: 6, apc: 6, truck: 9, fuel: 7 };
 
   // Is this a mission target? Ground places and vehicles count; ships, rail and the air do not.
+  // Is this a mission target? Enemy vehicles, guns and jets on the ground count; buildings,
+  // civilians, ships and the air do not (ships have their own mission).
   export function isObjective(t: { kind: string; faction?: string }): boolean {
-    if (t.faction) return false;
+    if (t.faction || !KINDS[t.kind].hostile) return false;
     const group = KINDS[t.kind].group;
-    return group === 'army' || group === 'farm' || group === 'town';
+    return group === 'army' || group === 'airfield';
+  }
+
+  // Can the plane lock a missile on it? Only enemies: fighters, and hostile ground and sea units.
+  // Buildings, farms, towns, trucks, rail, fuel, allies and rivals are neutral.
+  export function isHostile(t: { kind: string; faction?: string }): boolean {
+    if (t.faction) return t.faction === 'enemy';
+    return !!KINDS[t.kind]?.hostile;
   }
 
   export interface Target {
@@ -173,6 +183,7 @@ namespace PA {
     r: number;
     passed: boolean;
     yaw?: number;        // drone gates face along the course (radians); glider rings face the plane
+    dot?: boolean;       // a training dot: flown roughly over, height does not count
   }
 
   export interface Mission {
@@ -202,10 +213,12 @@ namespace PA {
 
   // Clusters of things in front of baseZ. Each cluster is one kind of place.
   // guns: whether the army, town and coast have anti-aircraft guns (missions decide this).
+  // Clusters are spread this far apart along the route, so a flight has room between them.
+  export const SPACING = 220;
   export function spawnTargets(rand: () => number, baseZ: number, count: number, guns = true): Target[] {
     const out: Target[] = [];
     for (let i = 0; i < count; i++) {
-      const Z = baseZ + i * 120 + rand() * 60;
+      const Z = baseZ + i * SPACING + rand() * 80;
       const roll = rand();
       const landX = landSite(rand);
       // Some vehicles drive along the road, north or south.
@@ -261,7 +274,7 @@ namespace PA {
   // An enemy fighter or an ally, flying in from far off.
   export function spawnAir(rand: () => number, px: number, pz: number, enemy: boolean): Target {
     const bearing = (rand() - 0.5) * 1.2;           // radians either side of the nose
-    const dist = 1100 + rand() * 200;
+    const dist = 1500 + rand() * 300;
     const X = px + Math.sin(bearing) * dist;
     const Z = pz + Math.cos(bearing) * dist;
     const h = 80 + rand() * 40;
@@ -283,7 +296,7 @@ namespace PA {
   export interface MissionSpec {
     name: string;
     brief: string;
-    goal: 'ground' | 'air' | 'ship';
+    goal: 'ground' | 'air' | 'ship' | 'dots' | 'rings' | 'race';   // dots and rings: training in order; race: laps of a circuit
     count: number;      // how many to destroy
     ships: number;      // ships placed at sea (ship missions)
     guns: boolean;      // anti-aircraft guns on the ground and the coast
@@ -294,6 +307,9 @@ namespace PA {
   }
 
   export const MISSIONS: MissionSpec[] = [
+    { name: 'Dots', brief: 'Fly roughly over each dot, in order. The next one is lit on the radar.', goal: 'dots', count: 6, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+    { name: 'Rings', brief: 'Fly through each ring, in order. Nothing shoots at you on this one.', goal: 'rings', count: 8, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+    { name: 'Circuit', brief: 'Two laps of the circuit against two friends and two allied planes. Hold your speed.', goal: 'race', count: 2, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
     { name: 'Range Day', brief: 'Practice on the range. Three ground targets, no fighters, no guns.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
     { name: 'First Contact', brief: 'One fighter now and then. Hold the nose on a target until it locks.', goal: 'ground', count: 4, ships: 0, guns: false, start: 'takeoff', firstWave: 90, waveEvery: 90, wave: 2 },
     { name: 'Coast Watch', brief: 'Two ships off the coast, with flak on the shore.', goal: 'ship', count: 2, ships: 2, guns: true, start: 'takeoff', firstWave: 100, waveEvery: 80, wave: 2 },
@@ -313,6 +329,36 @@ namespace PA {
     return { ...base, count: base.count + loop, wave: base.wave > 0 ? base.wave + loop : 0 };
   }
 
+  // Training courses (jet). Dots are flown roughly over, in order; rings are flown through, in order.
+  // They run north from the runway, spaced out so each one is a short climb-free glide away.
+  export function trainingCourse(rand: () => number, count: number, dot: boolean): Hoop[] {
+    const out: Hoop[] = [];
+    for (let i = 0; i < count; i++) {
+      const X = (rand() - 0.5) * 500;
+      const Z = 380 + i * (dot ? 300 : 200) + rand() * 60;
+      const h = dot ? 0 : 25 + rand() * 30;
+      out.push({ X, Z, h: groundAt(X, Z) + h, r: dot ? 40 : 10, passed: false, dot, yaw: dot ? undefined : 0 });
+    }
+    return out;
+  }
+
+  // The race circuit: a loop about 3.8 km round, to the west of the runway. The plane starts
+  // heading north on it, and the last gate sits on the start line, so one lap ends where it began.
+  export const RACE_GATES = 8;
+  export const RACE_OPTIMUM = 60;    // m/s, about 115 knots: the speed the racers' pace is set against
+  export function raceCircuit(): Hoop[] {
+    const R = 600, cx = -600, cz = 0;
+    const out: Hoop[] = [];
+    for (let i = 0; i < RACE_GATES; i++) {
+      const a = ((i + 1) / RACE_GATES) * Math.PI * 2;
+      const X = cx + R * Math.cos(a), Z = cz + R * Math.sin(a);
+      // The gate faces along the course: the tangent of the circle at this point.
+      const yaw = Math.atan2(-Math.sin(a), Math.cos(a));
+      out.push({ X, Z, h: groundAt(X, Z) + 60 + 15 * Math.sin(a * 2), r: 45, passed: false, yaw });
+    }
+    return out;
+  }
+
   export function makeMission(mode: Mode, seed: number, spec: MissionSpec = MISSIONS[0]): Mission {
     const rand = random(seed);
     if (mode === 'glider') {
@@ -326,11 +372,14 @@ namespace PA {
     }
     if (mode === 'drone') return { mode, targets: [], hoops: droneCourse() };
     // The first clusters start well out, so there is room to fly before anything is in reach.
-    const targets = spawnTargets(rand, 520, 10, spec.guns);
+    const targets = spawnTargets(rand, 520, 12, spec.guns);
     for (let i = 0; i < spec.ships; i++) {
       targets.push(target('ship', SEA_X + 140 + rand() * 160, 620 + i * 220 + rand() * 60, rand));
     }
-    return { mode, targets, hoops: [] };
+    const hoops = spec.goal === 'race' ? raceCircuit()
+      : spec.goal === 'dots' || spec.goal === 'rings' ? trainingCourse(rand, spec.count, spec.goal === 'dots')
+      : [];
+    return { mode, targets, hoops };
   }
 
   // The drone race: a closed loop of gates over open fields, about 700 m round, low and high.

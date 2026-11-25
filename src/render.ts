@@ -830,11 +830,54 @@ namespace PA {
   }
 
   // Glider rings: glowing hoops standing across the heading.
+  // A training dot: a flat coloured disc on the ground with a beacon and its number, so you can
+  // read the order at a glance. The next one is yellow, the one after it orange, flown ones green.
+  function dotMarker(ctx: CanvasRenderingContext2D, c: Cam, dot: Hoop, idx: number, lit: boolean, after: boolean): void {
+    const p = project(c, dot.X, groundAt(dot.X, dot.Z) + 0.5, dot.Z);
+    if (!p) return;
+    const depth = p[2];
+    const radius = Math.max(3, Math.min(60, dot.r * FOCAL / depth));
+    const beacon = Math.max(4, Math.min(80, 30 * FOCAL / depth));
+    const colour = lit ? '#ffe94a' : after ? '#ffc58a' : dot.passed ? '#7fe0a0' : '#ffb08a';
+    ctx.globalAlpha = fogAlpha(depth);
+    ctx.fillStyle = dot.passed ? 'rgba(127,224,160,0.35)' : 'rgba(255,240,150,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(p[0], p[1], radius, radius * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = Math.max(1, radius * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(p[0], p[1]);
+    ctx.lineTo(p[0], p[1] - beacon);
+    ctx.stroke();
+    ctx.fillStyle = colour;
+    ctx.beginPath();
+    ctx.arc(p[0], p[1] - beacon, Math.max(2, radius * 0.22), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    const size = Math.max(7, Math.min(22, 10 * FOCAL / depth * 0.6));
+    ctx.font = 'bold ' + Math.round(size) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,253,247,0.95)';
+    ctx.strokeText(String(idx + 1), p[0], p[1] - beacon - size * 0.6);
+    ctx.fillStyle = INK;
+    ctx.fillText(String(idx + 1), p[0], p[1] - beacon - size * 0.6);
+    ctx.textAlign = 'start';
+    ctx.globalAlpha = 1;
+  }
+
   function rings(ctx: CanvasRenderingContext2D, g: Game, c: Cam): void {
-    const next = g.race && !g.race.finished ? g.race.next : -1;
+    const inOrder = g.race ? !g.race.finished : g.missionSpec.goal === 'dots' || g.missionSpec.goal === 'rings';
+    const next = g.race && !g.race.finished ? g.race.next : inOrder ? g.mission.hoops.findIndex(h => !h.passed) : -1;
     const hoops = g.mission.hoops;
     for (let idx = 0; idx < hoops.length; idx++) {
       const ring = hoops[idx];
+      if (ring.dot) {
+        dotMarker(ctx, c, ring, idx, idx === next, idx === next + 1);
+        continue;
+      }
       // Drone gates face along the course; glider rings always face the plane.
       const ry = ring.yaw ?? g.plane.yaw;
       const rhx = Math.cos(ry), rhz = -Math.sin(ry);
@@ -1223,6 +1266,15 @@ namespace PA {
   // How long each stage took on the last frame, in milliseconds (for tuning).
   export const renderStats = { background: 0, objects: 0, total: 0, things: 0 };
 
+  // Flak smoke in the pilot's view: a grey veil that fades as the smoke clears.
+  function dazzleVeil(ctx: CanvasRenderingContext2D, g: Game): void {
+    if (g.dazzle <= 0) return;
+    ctx.globalAlpha = Math.min(0.85, g.dazzle);
+    ctx.fillStyle = '#d8d2c6';
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.globalAlpha = 1;
+  }
+
   export function render(ctx: CanvasRenderingContext2D, g: Game): void {
     const t0 = performance.now();
     cacheFrame();
@@ -1236,7 +1288,7 @@ namespace PA {
     birds(ctx, g, c);
     const t2 = performance.now();
     const droneMode = g.settings.mode === 'drone';
-    if ((g.settings.view !== 'cockpit' || droneMode) && (g.mission.mode === 'glider' || droneMode)) rings(ctx, g, c);
+    if ((g.settings.view !== 'cockpit' || droneMode) && (g.mission.mode === 'glider' || droneMode || g.mission.hoops.length > 0)) rings(ctx, g, c);
     tracers(ctx, c, g.shots, 'rgba(255,236,150,0.95)', 0.35);
     tracers(ctx, c, g.shells, 'rgba(255,150,90,0.9)', 0.5);
     missiles(ctx, g, c);
@@ -1255,6 +1307,7 @@ namespace PA {
     }
     if (g.settings.forces) forces(ctx, g);
     ctx.drawImage(textures().vignette, 0, 0);
+    dazzleVeil(ctx, g);
     const t3 = performance.now();
     renderStats.background = renderStats.background * 0.9 + (t1 - t0) * 0.1;
     // A slow device paints the ground every other column; a fast one goes back to every pixel.
