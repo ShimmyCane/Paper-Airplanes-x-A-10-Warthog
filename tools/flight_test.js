@@ -688,7 +688,8 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   g.onSound = () => {};
   g.missionNumber = 1; g.newFlight(21);
   const hs = g.mission.hoops;
-  check('dots: six dots, the first mission, no fighters or guns', g.missionSpec.goal === 'dots' && hs.length === 6 && hs.every(h => h.dot) && !g.missionSpec.guns && g.missionSpec.wave === 0);
+  check('dots: up to fifty dots, the first mission, no fighters or guns', g.missionSpec.goal === 'dots' && hs.length === 50 && hs.every(h => h.dot) && !g.missionSpec.guns && g.missionSpec.wave === 0);
+  check('dots: later ones are further apart and smaller', hs[49].Z - hs[48].Z > hs[1].Z - hs[0].Z && hs[49].r < hs[0].r);
   const at = (h, extra) => { g.plane.X = h.X; g.plane.Z = h.Z; g.plane.h = PA.groundAt(h.X, h.Z) + extra; g.plane.vx = 50; g.plane.vy = 0; };
   at(hs[1], 30); g.update(1 / 30);
   check('dots: a dot out of order does not count', g.hoopsPassed === 0 && !hs[1].passed);
@@ -696,8 +697,10 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   check('dots: the first counts when flown over', hs[0].passed && g.hoopsPassed === 1);
   at(hs[1], 150); g.update(1 / 30);
   check('dots: height does not matter, the second counts', hs[1].passed && g.hoopsPassed === 2);
-  for (let k = 2; k < hs.length; k++) { at(hs[k], 30); g.update(1 / 30); }
-  check('dots: the mission goes on to the next one when all six are flown', g.missionNumber === 2, 'mission ' + g.missionNumber);
+  for (let k = 2; k < hs.length - 1; k++) { at(hs[k], 30); g.update(1 / 30); }
+  check('dots: the mission is still on before the fiftieth', g.missionNumber === 1 && g.hoopsPassed === 49, 'passed ' + g.hoopsPassed);
+  at(hs[hs.length - 1], 30); g.update(1 / 30);
+  check('dots: the mission goes on to the next one when all fifty are flown', g.missionNumber === 2, 'mission ' + g.missionNumber);
 }
 
 // 42. Rings: fly through each in order, at the ring's height. A ring out of line does not count.

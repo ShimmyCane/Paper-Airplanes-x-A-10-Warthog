@@ -331,7 +331,7 @@ namespace PA {
   }
 
   export const MISSIONS: MissionSpec[] = [
-    { name: 'Dots', brief: 'Fly roughly over each dot, in order. The next one is lit on the radar.', goal: 'dots', count: 6, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+    { name: 'Dots', brief: 'Fly roughly over each dot, in order, up to fifty. The next one is lit on the radar. End mission moves on.', goal: 'dots', count: 50, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
     { name: 'Rings', brief: 'Fly through each ring, in order. Nothing shoots at you on this one.', goal: 'rings', count: 8, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
     { name: 'Circuit', brief: 'Two laps of the circuit against two friends and two allied planes. Hold your speed.', goal: 'race', count: 2, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
     { name: 'Range Day', brief: 'Practice on the range. Three ground targets, no fighters, no guns.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
@@ -354,14 +354,21 @@ namespace PA {
   }
 
   // Training courses (jet). Dots are flown roughly over, in order; rings are flown through, in order.
-  // They run north from the runway, spaced out so each one is a short climb-free glide away.
+  // They run north from the runway. Dots get further apart and smaller as you go (up to 50 of
+  // them), so the first few are easy and the later ones ask for more distance and precision.
+  export const DOT_MAX = 50;
   export function trainingCourse(rand: () => number, count: number, dot: boolean): Hoop[] {
     const out: Hoop[] = [];
+    let Z = 380;
     for (let i = 0; i < count; i++) {
       const X = (rand() - 0.5) * 500;
-      const Z = 380 + i * (dot ? 300 : 200) + rand() * 60;
-      const h = dot ? 0 : 25 + rand() * 30;
-      out.push({ X, Z, h: groundAt(X, Z) + h, r: dot ? 40 : 10, passed: false, dot, yaw: dot ? undefined : 0 });
+      if (dot) {
+        out.push({ X, Z: Z + rand() * 60, h: groundAt(X, Z), r: Math.max(24, 40 - i * 0.3), passed: false, dot: true });
+        Z += 300 + Math.min(i, 25) * 14;   // further apart, up to about 650 m
+      } else {
+        out.push({ X, Z: Z + rand() * 60, h: groundAt(X, Z) + 25 + rand() * 30, r: 10, passed: false, yaw: 0 });
+        Z += 200;
+      }
     }
     return out;
   }
