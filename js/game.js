@@ -315,6 +315,16 @@ var PA;
             faction: 'ally', orbit: { cx, cz, r: 900, ang: rand() * Math.PI * 2, w: 0.09 }, age: 0 };
     }
     PA.spawnAir = spawnAir;
+    // The missions, in order. Mission 1 is a calm range day: no fighters and no guns, so the
+    // first flight is about learning the controls. Later ones add fighters, guns and ships.
+    // start: 'takeoff' from the runway, or 'return': already flying home, hull down, with
+    // fighters on the tail (the first wave of them is there from the start).
+    // wave: fighters per wave at the normal setting (2); the setting scales it.
+    // The training goals: fly the dots or rings one after another. (The race has its own order.)
+    function isOrderedGoal(goal) {
+        return goal === 'dots' || goal === 'rings';
+    }
+    PA.isOrderedGoal = isOrderedGoal;
     PA.MISSIONS = [
         { name: 'Dots', brief: 'Fly roughly over each dot, in order. The next one is lit on the radar.', goal: 'dots', count: 6, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
         { name: 'Rings', brief: 'Fly through each ring, in order. Nothing shoots at you on this one.', goal: 'rings', count: 8, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
@@ -386,7 +396,7 @@ var PA;
             targets.push(target('ship', PA.SEA_X + 140 + rand() * 160, 620 + i * 220 + rand() * 60, rand));
         }
         const hoops = spec.goal === 'race' ? raceCircuit()
-            : spec.goal === 'dots' || spec.goal === 'rings' ? trainingCourse(rand, spec.count, spec.goal === 'dots')
+            : isOrderedGoal(spec.goal) ? trainingCourse(rand, spec.count, spec.goal === 'dots')
                 : [];
         return { mode, targets, hoops };
     }
@@ -2476,7 +2486,7 @@ var PA;
         }
         isTraining() {
             const goal = this.missionSpec.goal;
-            return goal === 'dots' || goal === 'rings' || goal === 'race';
+            return PA.isOrderedGoal(goal) || goal === 'race';
         }
         // Finishing a mission (or the End mission button): the next one starts, fully restocked.
         endMission() {
@@ -4525,7 +4535,7 @@ var PA;
     }
     function rings(ctx, g, c) {
         var _a;
-        const inOrder = g.race ? !g.race.finished : g.missionSpec.goal === 'dots' || g.missionSpec.goal === 'rings';
+        const inOrder = g.race ? !g.race.finished : PA.isOrderedGoal(g.missionSpec.goal);
         const next = g.race && !g.race.finished ? g.race.next : inOrder ? g.mission.hoops.findIndex(h => !h.passed) : -1;
         const hoops = g.mission.hoops;
         for (let idx = 0; idx < hoops.length; idx++) {
@@ -4980,7 +4990,7 @@ var PA;
         birds(ctx, g, c);
         const t2 = performance.now();
         const droneMode = g.settings.mode === 'drone';
-        if ((g.settings.view !== 'cockpit' || droneMode) && (g.mission.mode === 'glider' || droneMode || g.mission.hoops.length > 0))
+        if ((g.settings.view !== 'cockpit' || droneMode) && g.mission.hoops.length > 0)
             rings(ctx, g, c);
         tracers(ctx, c, g.shots, 'rgba(255,236,150,0.95)', 0.35);
         tracers(ctx, c, g.shells, 'rgba(255,150,90,0.9)', 0.5);
@@ -5132,7 +5142,7 @@ var PA;
             ctx.fillStyle = t.faction === 'enemy' ? '#ff6b6b' : gunner ? '#ffb02e' : DOT[info ? info.group : 'army'];
             ctx.fillRect(Math.round(q[0]) - 2, Math.round(q[1]) - 2, 4, 4);
         }
-        const inOrder = !g.race && (g.missionSpec.goal === 'dots' || g.missionSpec.goal === 'rings');
+        const inOrder = !g.race && PA.isOrderedGoal(g.missionSpec.goal);
         g.mission.hoops.forEach((h, idx) => {
             if (h.passed)
                 return;
@@ -5738,7 +5748,7 @@ var PA;
             const r = g.race;
             return 'Lap ' + Math.min(r.lap, r.laps) + ' of ' + r.laps + ' · gate ' + (r.next + 1) + ' of ' + g.mission.hoops.length + ' · ' + ordinal(r.place);
         }
-        if (goal === 'dots' || goal === 'rings') {
+        if (PA.isOrderedGoal(goal)) {
             const n = g.mission.hoops.length;
             return (goal === 'dots' ? 'Dot ' : 'Ring ') + Math.min(n, g.hoopsPassed + 1) + ' of ' + n;
         }

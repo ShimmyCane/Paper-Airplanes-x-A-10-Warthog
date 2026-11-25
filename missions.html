@@ -150,7 +150,7 @@ footer { margin-top: 40px; font-size: 14px; color: var(--muted); }
   <div class="wrap">
     <span class="tag">A-10 jet · Missions mode</span>
     <h1 style="margin-top:12px">Missions Mode: what to expect</h1>
-    <p class="lede">Ten missions in order. Each one has a goal, a start, and a set of fighters and guns. The first flight is a calm practice run, and the later ones are harder.</p>
+    <p class="lede">Thirteen missions in order. The first three teach the controls and a race. After them come ten fights, each with a goal, a start, and a set of fighters and guns, and the later ones are harder.</p>
   </div>
 </div>
 
@@ -177,72 +177,90 @@ footer { margin-top: 40px; font-size: 14px; color: var(--muted); }
     <div class="panel step">
       <span class="n">4</span>
       <h3>Finish and restock</h3>
-      <p class="muted">Reach the goal to earn 500 points. Ammo, missiles, chaff and hull are restored, and the next mission starts.</p>
+      <p class="muted">Reach the goal to earn 500 points. Ammo, missiles, chaff and hull are restored, and the next mission starts. The End mission button skips to the next mission at any time (the training and the race end themselves too).</p>
     </div>
   </div>
 </section>
 
 <section aria-labelledby="list">
-  <h2 id="list">The ten missions</h2>
+  <h2 id="list">The thirteen missions</h2>
   <p class="muted">Fighter counts are for the default setting. A "return" start means you are already flying home, with fighters behind you.</p>
   <div class="missions">
 
     <article class="panel mission">
-      <header><span class="no">1</span><h3>Range Day</h3></header>
+      <header><span class="no">1</span><h3>Dots</h3></header>
+      <div class="chips"><span class="chip">Fly over 6 dots, in order</span><span class="chip">Takeoff</span></div>
+      <p class="facts">Roughly over each numbered dot. Height does not count. Nothing shoots at you.</p>
+    </article>
+
+    <article class="panel mission">
+      <header><span class="no">2</span><h3>Rings</h3></header>
+      <div class="chips"><span class="chip">Fly through 8 rings, in order</span><span class="chip">Takeoff</span></div>
+      <p class="facts">Each ring is lit in turn. Line up and fly through at its height. Nothing shoots at you.</p>
+    </article>
+
+    <article class="panel mission">
+      <header><span class="no">3</span><h3>Circuit</h3></header>
+      <div class="chips"><span class="chip">Two laps, against 4 racers</span><span class="chip">Takeoff</span></div>
+      <p class="facts">Race round the circuit against two friends and two allied planes. Their pace is between half and nine-tenths of the best speed, and it can drop by up to 15% now and then.</p>
+    </article>
+
+    <article class="panel mission">
+      <header><span class="no">4</span><h3>Range Day</h3></header>
       <div class="chips"><span class="chip ground">Destroy 3 ground targets</span><span class="chip">Takeoff</span></div>
       <p class="facts">No fighters and no guns. Learn the controls.</p>
     </article>
 
     <article class="panel mission">
-      <header><span class="no">2</span><h3>First Contact</h3></header>
+      <header><span class="no">5</span><h3>First Contact</h3></header>
       <div class="chips"><span class="chip ground">Destroy 4 ground targets</span><span class="chip">Takeoff</span></div>
       <p class="facts">No guns. One fighter arrives about 90 seconds in, then one every 90 seconds.</p>
     </article>
 
     <article class="panel mission">
-      <header><span class="no">3</span><h3>Coast Watch</h3></header>
+      <header><span class="no">6</span><h3>Coast Watch</h3></header>
       <div class="chips"><span class="chip ship">Sink 2 ships</span><span class="chip">Takeoff</span></div>
       <p class="facts">Ships at sea and flak on the shore. The first fighter comes after about 100 seconds.</p>
     </article>
 
     <article class="panel mission">
-      <header><span class="no">4</span><h3>Armour Strike</h3></header>
+      <header><span class="no">7</span><h3>Armour Strike</h3></header>
       <div class="chips"><span class="chip ground">Destroy 6 ground targets</span><span class="chip">Takeoff</span></div>
       <p class="facts">Tanks drive the road, with guns and flak. A fighter comes after about 2 minutes.</p>
     </article>
 
     <article class="panel mission">
-      <header><span class="no">5</span><h3>Intercept</h3></header>
+      <header><span class="no">8</span><h3>Intercept</h3></header>
       <div class="chips"><span class="chip air">Shoot down 3 fighters</span><span class="chip">Takeoff</span></div>
       <p class="facts">Fighters come in from the first 30 seconds, in waves of 2 at the default setting.</p>
     </article>
 
     <article class="panel mission">
-      <header><span class="no">6</span><h3>Heading Home</h3></header>
+      <header><span class="no">9</span><h3>Heading Home</h3></header>
       <div class="chips"><span class="chip ground">Destroy 3 ground targets</span><span class="chip return">Return: under fire</span></div>
       <p class="facts">You start 900 m north, flying home at 60 m/s with 60 hull. A fighter starts on your tail.</p>
     </article>
 
     <article class="panel mission">
-      <header><span class="no">7</span><h3>Town Watch</h3></header>
+      <header><span class="no">10</span><h3>Town Watch</h3></header>
       <div class="chips"><span class="chip ground">Destroy 5 ground targets</span><span class="chip">Takeoff</span></div>
       <p class="facts">Town SAM sites fire missiles. Stay out of their range. Fighters come after about 2 minutes.</p>
     </article>
 
     <article class="panel mission">
-      <header><span class="no">8</span><h3>Air Superiority</h3></header>
+      <header><span class="no">11</span><h3>Air Superiority</h3></header>
       <div class="chips"><span class="chip air">Shoot down 5 fighters</span><span class="chip">Takeoff</span></div>
       <p class="facts">Bigger waves, guns and missiles both help. Waves of 2 come every 40 seconds.</p>
     </article>
 
     <article class="panel mission">
-      <header><span class="no">9</span><h3>Port Strike</h3></header>
+      <header><span class="no">12</span><h3>Port Strike</h3></header>
       <div class="chips"><span class="chip ship">Sink 3 ships</span><span class="chip">Takeoff</span></div>
       <p class="facts">Harbour ships, with the shore guns awake. The first fighter comes after about a minute.</p>
     </article>
 
     <article class="panel mission">
-      <header><span class="no">10</span><h3>Last Light</h3></header>
+      <header><span class="no">13</span><h3>Last Light</h3></header>
       <div class="chips"><span class="chip ground">Destroy 8 ground targets</span><span class="chip return">Return: under fire</span></div>
       <p class="facts">Three fighters start behind you, at 900 m north with 60 hull. Then waves every 45 seconds.</p>
     </article>
@@ -261,7 +279,7 @@ footer { margin-top: 40px; font-size: 14px; color: var(--muted); }
     </div>
     <div class="panel">
       <dl>
-        <div><dt>Guns on the ground</dt><dd>Tanks shoot with machine guns, and flak bursts up at you. SAM sites fire missiles. Only missions with guns have them, which is every mission from Coast Watch on, except Intercept and Heading Home.</dd></div>
+        <div><dt>Guns on the ground</dt><dd>Tanks shoot with machine guns, and flak bursts up at you. A flak round bursts close by its fuse: it damages the airframe, its smoke hides the view for a few seconds, and the hit shakes the screen. SAM sites fire missiles. Only missions with guns have them, which is every mission from Coast Watch on, except Intercept and Heading Home.</dd></div>
         <div><dt>Ships and route bases</dt><dd>Ships fire cannon, and defended bases with SAM and flak come up along the route. Both only appear in missions with guns.</dd></div>
       </dl>
     </div>

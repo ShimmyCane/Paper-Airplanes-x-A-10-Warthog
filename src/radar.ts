@@ -101,7 +101,7 @@ namespace PA {
       ctx.fillStyle = t.faction === 'enemy' ? '#ff6b6b' : gunner ? '#ffb02e' : DOT[info ? info.group : 'army'];
       ctx.fillRect(Math.round(q[0]) - 2, Math.round(q[1]) - 2, 4, 4);
     }
-    const inOrder = !g.race && (g.missionSpec.goal === 'dots' || g.missionSpec.goal === 'rings');
+    const inOrder = !g.race && isOrderedGoal(g.missionSpec.goal);
     g.mission.hoops.forEach((h, idx) => {
       if (h.passed) return;
       const q = place(h.X, h.Z);

@@ -545,7 +545,7 @@ namespace PA {
       const r = g.race;
       return 'Lap ' + Math.min(r.lap, r.laps) + ' of ' + r.laps + ' · gate ' + (r.next + 1) + ' of ' + g.mission.hoops.length + ' · ' + ordinal(r.place);
     }
-    if (goal === 'dots' || goal === 'rings') {
+    if (isOrderedGoal(goal)) {
       const n = g.mission.hoops.length;
       return (goal === 'dots' ? 'Dot ' : 'Ring ') + Math.min(n, g.hoopsPassed + 1) + ' of ' + n;
     }

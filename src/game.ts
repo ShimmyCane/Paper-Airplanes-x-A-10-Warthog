@@ -683,7 +683,7 @@ namespace PA {
 
     isTraining(): boolean {
       const goal = this.missionSpec.goal;
-      return goal === 'dots' || goal === 'rings' || goal === 'race';
+      return isOrderedGoal(goal) || goal === 'race';
     }
 
     // Finishing a mission (or the End mission button): the next one starts, fully restocked.

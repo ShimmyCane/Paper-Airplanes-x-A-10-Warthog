@@ -912,7 +912,7 @@ namespace PA {
   }
 
   function rings(ctx: CanvasRenderingContext2D, g: Game, c: Cam): void {
-    const inOrder = g.race ? !g.race.finished : g.missionSpec.goal === 'dots' || g.missionSpec.goal === 'rings';
+    const inOrder = g.race ? !g.race.finished : isOrderedGoal(g.missionSpec.goal);
     const next = g.race && !g.race.finished ? g.race.next : inOrder ? g.mission.hoops.findIndex(h => !h.passed) : -1;
     const hoops = g.mission.hoops;
     for (let idx = 0; idx < hoops.length; idx++) {
@@ -1333,7 +1333,7 @@ namespace PA {
     birds(ctx, g, c);
     const t2 = performance.now();
     const droneMode = g.settings.mode === 'drone';
-    if ((g.settings.view !== 'cockpit' || droneMode) && (g.mission.mode === 'glider' || droneMode || g.mission.hoops.length > 0)) rings(ctx, g, c);
+    if ((g.settings.view !== 'cockpit' || droneMode) && g.mission.hoops.length > 0) rings(ctx, g, c);
     tracers(ctx, c, g.shots, 'rgba(255,236,150,0.95)', 0.35);
     tracers(ctx, c, g.shells, 'rgba(255,150,90,0.9)', 0.5);
     missiles(ctx, g, c);

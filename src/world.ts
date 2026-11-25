@@ -312,6 +312,11 @@ namespace PA {
   // start: 'takeoff' from the runway, or 'return': already flying home, hull down, with
   // fighters on the tail (the first wave of them is there from the start).
   // wave: fighters per wave at the normal setting (2); the setting scales it.
+  // The training goals: fly the dots or rings one after another. (The race has its own order.)
+  export function isOrderedGoal(goal: MissionSpec['goal']): boolean {
+    return goal === 'dots' || goal === 'rings';
+  }
+
   export interface MissionSpec {
     name: string;
     brief: string;
@@ -396,7 +401,7 @@ namespace PA {
       targets.push(target('ship', SEA_X + 140 + rand() * 160, 620 + i * 220 + rand() * 60, rand));
     }
     const hoops = spec.goal === 'race' ? raceCircuit()
-      : spec.goal === 'dots' || spec.goal === 'rings' ? trainingCourse(rand, spec.count, spec.goal === 'dots')
+      : isOrderedGoal(spec.goal) ? trainingCourse(rand, spec.count, spec.goal === 'dots')
       : [];
     return { mode, targets, hoops };
   }
