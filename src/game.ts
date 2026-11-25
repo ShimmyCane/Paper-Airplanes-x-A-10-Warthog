@@ -47,13 +47,19 @@ namespace PA {
   export interface Rival {
     t: Target;            // drawn as a target (kind rival1-3), never shot at
     name: string;
-    vmax: number;
+    vmax: number;         // its top pace, m/s
     v: number;
     dir: [number, number, number];
     lap: number;
     next: number;
     done: boolean;
+    vary: number;         // 0-1: how far this racer is off its pace right now (jet race)
+    varyT: number;        // seconds until the next change in pace
   }
+
+  const RACE_VARY = 0.15;          // a jet racer's pace drops by up to this share, now and then
+  const RACE_SKILL = [0.5, 0.9];   // a jet racer's pace: this range of the optimum speed
+  const RACE_NAMES = ['Swift', 'Comet', 'Ace', 'Bolt'];   // two friends, then two allied planes
 
   const DRONE_LAPS = 2;
   const DRONE_CRASH_PENALTY = 3;
@@ -101,6 +107,7 @@ namespace PA {
     friendly?: boolean;   // an ally's bullet: it only hits enemies
     dmg?: number;         // hull damage if it hits the plane (default: a third)
     r?: number;           // how close counts as a hit, metres (flak bursts near the plane)
+    flak?: boolean;       // a flak round: it bursts by its fuse, and the burst dazzles the pilot
   }
 
   const WRECK_LIFE = 50;     // seconds a wreck burns and smokes
@@ -194,7 +201,11 @@ namespace PA {
   const BREAK_FOR = 3.5;         // it flies straight away this long, then comes back
   const ALLY_GUN_RANGE = 700;    // allies shoot at enemy fighters inside this range
   const ALLY_COOL = 0.35;
-  const BASE_SPACING = 1400;     // a defended base every this many metres along the route
+  const FLAK_FUSE = 18;          // metres: a flak round bursts this close to the plane
+  const SHAKE_PER_DAMAGE = 1 / 40; // screen shake per point of hull damage (a missile shakes hard)
+  const SHAKE_DECAY = 1.5;       // shake lost per second
+  const DAZZLE_DECAY = 0.25;     // share of the pilot's vision lost to smoke that clears per second
+  const BASE_SPACING = 2000;     // a defended base every this many metres along the route
   const KEEP_AHEAD = 6;
 
   export class Game {
@@ -233,7 +244,7 @@ namespace PA {
     beepTimer = 0;
     objectiveGoal = 0;
     objectiveDone = 0;
-    objectiveKind: 'ground' | 'air' | 'ship' = 'ground';
+    objectiveKind: MissionSpec['goal'] = 'ground';
     missionSpec: MissionSpec = MISSIONS[0];   // the mission in progress
     missionNumber = 1;
     resupplied = 0;            // seconds left of the "resupplied" banner
@@ -247,6 +258,8 @@ namespace PA {
     wrecks: { X: number; Z: number; size: number; age: number }[] = [];   // burning remains
     bases: { X: number; Z: number }[] = [];                                 // where each base's flag stands
     marks: Mark[] = [];
+    shake = 0;                 // 0-1: how hard the screen is shaking (damage)
+    dazzle = 0;                // 0-1: how much the flak smoke hides the view
     warned = false;
     held: Held = { fire: false, boost: false, missile: false };
     axes: Axes = { yaw: 0, pitch: 0 };
@@ -287,6 +300,7 @@ namespace PA {
         this.plane.start(0, 0, groundAt(0, 0) + 10, 50, 0.05, 0, CRUISE_THROTTLE);
       }
       this.phase = 'flying';
+      if (this.missionSpec.goal === 'race') this.startJetRace();
       this.score = keepScore ? score : 0;
       this.kills = keepScore ? kills : 0;
       this.hull = this.missionSpec.start === 'return' && this.settings.mode === 'jet' ? 60 : 100;
@@ -313,7 +327,8 @@ namespace PA {
       this.objectiveKind = this.missionSpec.goal;
       this.objectiveDone = 0;
       this.missionCard = this.settings.mode === 'jet' ? 5 : 0;
-      for (let i = 0; i < this.settings.allies; i++) {
+      // Training and the race use their own planes; the allies are for the fights.
+      for (let i = 0; i < (this.isTraining() ? 0 : this.settings.allies); i++) {
         this.mission.targets.push(spawnAir(this.rand, 0, 0, false));
       }
       if (this.missionSpec.start === 'return' && this.settings.mode === 'jet') {
@@ -331,6 +346,8 @@ namespace PA {
       this.decoys = [];
       this.puffs = [];
       this.marks = [];
+      this.shake = 0;
+      this.dazzle = 0;
     }
 
     // A reload from ⚙️ (normal mode only): the gun and missiles come back, with a cooldown.
@@ -368,6 +385,8 @@ namespace PA {
       this.resupplied = Math.max(0, this.resupplied - dt);
       this.missionCard = Math.max(0, this.missionCard - dt);
       this.resupplyCool = Math.max(0, this.resupplyCool - dt);
+      this.shake = Math.max(0, this.shake - dt * SHAKE_DECAY);
+      this.dazzle = Math.max(0, this.dazzle - dt * DAZZLE_DECAY);
 
       if (this.phase === 'crashed') {
         // A full reset: the plane is restocked and the mission starts again.
@@ -420,6 +439,14 @@ namespace PA {
         this.updateShells(dt);
         this.updateGunners(dt);
         this.updateTag(dt);
+        if (this.race) {
+          this.race.time += dt;
+          this.checkGate();
+          this.updateRivals(dt);
+          this.updatePlace();
+        } else {
+          this.checkTraining();
+        }
         this.updateObjective();
         this.keepTargets();
         this.emitDust();
@@ -454,7 +481,7 @@ namespace PA {
         const [rx, rz, ry] = this.startPad(i + 1);
         const t: Target = { kind: r.kind, X: rx, Z: rz, h: groundAt(rx, rz) + 0.15, alive: true, points: 0, hp: 1, cool: 0, vH: ry };
         this.mission.targets.push(t);
-        this.rivals.push({ t, name: r.name, vmax: pace * r.pace, v: 0, dir: [Math.sin(ry), 0, Math.cos(ry)], lap: 1, next: 0, done: false });
+        this.rivals.push({ t, name: r.name, vmax: pace * r.pace, v: 0, dir: [Math.sin(ry), 0, Math.cos(ry)], lap: 1, next: 0, done: false, vary: 0, varyT: Infinity });
       });
     }
 
@@ -538,7 +565,12 @@ namespace PA {
         const dl = Math.hypot(dx, dy, dz) || 1;
         dx /= dl; dy /= dl; dz /= dl;
         const bend = r.dir[0] * dx + r.dir[1] * dy + r.dir[2] * dz;
-        const want = r.done ? 0 : r.vmax * (0.55 + 0.45 * Math.max(0, bend));
+        r.varyT -= dt;
+        if (r.varyT <= 0) {
+          r.vary = this.rand();
+          r.varyT = 1.5 + this.rand() * 2;
+        }
+        const want = r.done ? 0 : r.vmax * (1 - RACE_VARY * r.vary) * (0.55 + 0.45 * Math.max(0, bend));
         r.v += Math.max(-8 * dt, Math.min(5 * dt, want - r.v));
         const turn = Math.min(1, 3.5 * dt);
         r.dir = [r.dir[0] + (dx - r.dir[0]) * turn, r.dir[1] + (dy - r.dir[1]) * turn, r.dir[2] + (dz - r.dir[2]) * turn];
@@ -598,6 +630,7 @@ namespace PA {
       this.phase = 'crashed';
       this.hull = 0;
       this.blink = BLINK_SECONDS;
+      this.shake = 1;
       this.explode(this.plane.X, this.plane.h, this.plane.Z, 26);
       this.onSound('crash');
     }
@@ -607,6 +640,7 @@ namespace PA {
       this.marks.push({ x: (this.rand() < 0.5 ? -1 : 1) * (5 + this.rand() * 6), y: -1 + this.rand() * 2, age: 0 });
       if (this.marks.length > 12) this.marks.shift();
       this.hits++;
+      this.shake = Math.min(1, this.shake + dmg * SHAKE_PER_DAMAGE);   // the harder the hit, the harder the screen shakes
       if (this.settings.invincible !== 1 && !this.felix) {
         this.hull = Math.max(0, this.hull - dmg);
       }
@@ -647,19 +681,51 @@ namespace PA {
       }
     }
 
+    isTraining(): boolean {
+      const goal = this.missionSpec.goal;
+      return isOrderedGoal(goal) || goal === 'race';
+    }
+
+    // Finishing a mission (or the End mission button): the next one starts, fully restocked.
+    endMission(): void {
+      this.missionNumber++;
+      this.newFlight(this.seed + 1, true, true);
+    }
+
     // Mission objective: destroy a number of ground targets. Finishing restocks everything.
     private updateObjective(): void {
       if (this.objectiveDone < this.objectiveGoal) return;
-      this.missionNumber++;
       this.score += 500;
-      this.ammo = AMMO_MAX;
-      this.missileStock = MISSILE_MAX;
-      this.chaff = CHAFF_MAX;
-      this.hull = 100;
-      this.hits = 0;
       this.resupplied = 4;
       this.onSound('chime');
-      this.newFlight(this.seed + 1, true, true);
+      this.endMission();
+    }
+
+    // Training in order: the next dot or ring counts once the plane is close enough to it.
+    private checkTraining(): void {
+      const next = this.mission.hoops.find(h => !h.passed);
+      if (!next) return;
+      const p = this.plane;
+      const dx = p.X - next.X, dz = p.Z - next.Z, dh = next.dot ? 0 : p.h - next.h;
+      if (dx * dx + dz * dz + dh * dh > next.r * next.r) return;
+      next.passed = true;
+      this.hoopsPassed++;
+      this.objectiveDone++;
+      this.score += 100;
+      this.onSound('chime');
+    }
+
+    // The jet race: two friends and two allied planes, each at its own share of the optimum speed.
+    private startJetRace(): void {
+      this.race = { laps: 2, lap: 1, next: 0, time: 0, countdown: 0, crashes: 0, place: RACE_NAMES.length + 1, finished: false, results: [] };
+      RACE_NAMES.forEach((name, i) => {
+        const X = (i % 2 ? 8 : -8), Z = -16 - i * 14;
+        const h = groundAt(X, Z) + 60;
+        const vmax = RACE_OPTIMUM * (RACE_SKILL[0] + (RACE_SKILL[1] - RACE_SKILL[0]) * this.rand());
+        const t: Target = { kind: 'ally', X, Z, h, alive: true, points: 0, hp: 1, cool: 0, faction: 'ally', vH: 0 };
+        this.mission.targets.push(t);
+        this.rivals.push({ t, name, vmax, v: vmax * 0.8, dir: [0, 0, 1], lap: 1, next: 0, done: false, vary: 0, varyT: 0 });
+      });
     }
 
     // Fighters in one wave: the mission's number, scaled by the setting (2 is full, 1 is half).
@@ -688,6 +754,7 @@ namespace PA {
           this.mission.targets.push(spawnAir(this.rand, this.plane.X, this.plane.Z, true));
         }
       }
+      if (this.isTraining()) return;
       const allies = this.mission.targets.filter(t => t.faction === 'ally' && t.alive).length;
       if (allies + this.allyTimers.length < this.settings.allies) {
         this.allyTimers.push(FRIEND_RESPAWN);
@@ -868,7 +935,8 @@ namespace PA {
         life: SHELL_LIFE,
         warn,
         dmg: gun.dmg,
-        r: gun.type === 'flak' ? 9 : gun.type === 'cannon' ? 4 : 3,
+        r: gun.type === 'flak' ? FLAK_FUSE : gun.type === 'cannon' ? 4 : 3,
+        flak: gun.type === 'flak',
       });
       this.flash(t.X, gy, t.Z, '#ffd27a');
       this.onSound('thud');
@@ -881,7 +949,7 @@ namespace PA {
       let best: Target | null = null;
       let bestD = MISSILE_RANGE;
       for (const t of this.mission.targets) {
-        if (!t.alive || t.faction === 'ally') continue;
+        if (!t.alive || !isHostile(t)) continue;
         const dx = t.X - p.X, dz = t.Z - p.Z;
         const d = Math.hypot(dx, dz);
         if (d > bestD || d < 1) continue;
@@ -1149,7 +1217,7 @@ namespace PA {
       let best: Target | null = null;
       let bestD = GROUND_RANGE;
       for (const t of this.mission.targets) {
-        if (!t.alive) continue;
+        if (!t.alive || !isHostile(t)) continue;
         const dx = t.X - p.X, dz = t.Z - p.Z;
         const d = Math.hypot(dx, dz);
         if (d < 1 || (dx * sinY + dz * cosY) <= 0) continue;
@@ -1237,8 +1305,8 @@ namespace PA {
         let hit = false;
         for (const t of this.mission.targets) {
           if (!t.alive) continue;
-          // An ally's bullet only hits enemies; the player's never hit allies.
-          if (s.friendly ? t.faction !== 'enemy' : t.faction === 'ally') continue;
+          // An ally's bullet only hits enemies; the player's only hit what is hostile (never buildings or civilians).
+          if (s.friendly ? t.faction !== 'enemy' : !isHostile(t)) continue;
           const info = KINDS[t.kind];
           const dx = s.X - t.X, dz = s.Z - t.Z;
           const tg = altOf(t);
@@ -1303,7 +1371,8 @@ namespace PA {
         const r = s.r ?? 3;
         if (d < r) {
           this.takeHit(s.dmg);
-          this.explode(s.X, s.h, s.Z, 6);
+          if (s.flak) this.flakBurst(s, d);
+          else this.explode(s.X, s.h, s.Z, 6);
           this.onSound('thud');
           continue;
         }
@@ -1311,6 +1380,22 @@ namespace PA {
       }
       this.shells = keep;
       if (!this.shells.some(s => s.warn)) this.warned = false;
+    }
+
+    // A flak round bursts by its fuse: a dark cloud where it goes off. The closer the burst,
+    // the more the smoke hides the view, and the more the screen jolts.
+    private flakBurst(s: Shot, d: number): void {
+      const close = 1 - Math.min(1, d / FLAK_FUSE);
+      this.dazzle = Math.min(0.9, Math.max(this.dazzle, 0.35 + 0.6 * close));
+      this.shake = Math.min(1, this.shake + 0.2 * close);
+      for (let i = 0; i < 8; i++) {
+        const a = this.rand() * Math.PI * 2, sp = 2 + this.rand() * 5;
+        this.puffs.push({
+          X: s.X, h: s.h, Z: s.Z, vX: Math.cos(a) * sp, vY: 1 + this.rand() * 4, vZ: Math.sin(a) * sp,
+          life: 0.9 + this.rand() * 0.6, max: 1.5, color: '#4a4252', size: 4 + this.rand() * 4, kind: 'smoke',
+        });
+      }
+      this.flash(s.X, s.h, s.Z, '#ffe2a0');
     }
 
     private keepTargets(): void {

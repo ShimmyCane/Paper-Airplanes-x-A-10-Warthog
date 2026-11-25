@@ -183,12 +183,12 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   const settings = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'felix', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 0, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 2, allies: 1 };
   const g = new PA.Game(settings);
   g.onSound = () => {};
-  check('missions: the first is the calm range day (no fighters, no guns)', g.missionSpec.name === 'Range Day' && g.missionSpec.wave === 0 && !g.missionSpec.guns, g.missionSpec.name);
+  check('missions: the first is the calm dots course (no fighters, no guns)', g.missionSpec.name === 'Dots' && g.missionSpec.wave === 0 && !g.missionSpec.guns, g.missionSpec.name);
   let calmSeen = 0;
   for (let i = 0; i < 100 * 30; i++) { g.update(1 / 30); calmSeen = Math.max(calmSeen, g.mission.targets.filter(t => t.faction === 'enemy').length); }
   check('range day: no fighters in 100 s', calmSeen === 0, 'max ' + calmSeen);
 
-  g.missionNumber = 2;
+  g.missionNumber = 5;   // First Contact
   g.newFlight(5);
   let seen = 0, firstAt = -1;
   for (let i = 0; i < 120 * 30; i++) {
@@ -209,25 +209,25 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
 // 9f. The missions: ten in order, a return starts under fire, ships and fighters count,
 //     the ground is clear of the road and rail, and the start is clear of targets.
 {
-  check('missions: ten, the calm one first', PA.MISSIONS.length === 10 && PA.MISSIONS[0].wave === 0, 'count ' + PA.MISSIONS.length);
-  check('missions: after ten, the list starts again a little harder', PA.missionFor(11).name === 'Range Day' && PA.missionFor(11).count === PA.MISSIONS[0].count + 1);
+  check('missions: thirteen (dots, rings, circuit, then the ten), the calm one first', PA.MISSIONS.length === 13 && PA.MISSIONS[0].wave === 0, 'count ' + PA.MISSIONS.length);
+  check('missions: after thirteen, the list starts again a little harder', PA.missionFor(14).name === 'Dots' && PA.missionFor(14).count === PA.MISSIONS[0].count + 1);
   const base = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 0, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 1, allies: 0 };
 
   const g = new PA.Game(base);
   g.onSound = () => {};
-  g.missionNumber = 6; g.newFlight(9);   // Heading Home: starts flying home, hull down
+  g.missionNumber = 9; g.newFlight(9);   // Heading Home: starts flying home, hull down
   const behind = g.mission.targets.filter(t => t.faction === 'enemy' && t.Z < g.plane.Z).length;
   check('return: starts flying home with fighters on the tail', g.plane.Z > 800 && behind >= 1 && g.hull === 60, 'behind ' + behind + ', hull ' + g.hull);
 
-  g.missionNumber = 9; g.newFlight(10);  // Port Strike: ships at sea
+  g.missionNumber = 12; g.newFlight(10);  // Port Strike: ships at sea
   const ships = g.mission.targets.filter(t => t.kind === 'ship');
   check('ship mission: three ships at sea', ships.length >= 3 && ships.every(t => t.X > PA.SEA_X), 'ships ' + ships.length);
   check('ship mission: a ship counts, a truck does not', g.countsForObjective(ships[0]) && !g.countsForObjective({ kind: 'truck', alive: true, faction: undefined }));
 
-  g.missionNumber = 5; g.newFlight(11);  // Intercept: fighters count
+  g.missionNumber = 8; g.newFlight(11);  // Intercept: fighters count
   check('air mission: a fighter counts, a tank does not', g.countsForObjective({ kind: 'fighter', faction: 'enemy' }) && !g.countsForObjective({ kind: 'tank_mbt' }));
 
-  g.missionNumber = 1; g.newFlight(12);  // Range Day: no guns anywhere
+  g.missionNumber = 4; g.newFlight(12);  // Range Day: no guns anywhere
   const guns = g.mission.targets.filter(t => t.kind === 'sam' || t.kind === 'flak').length;
   check('range day: no guns on the map', guns === 0, 'guns ' + guns);
   const near = g.mission.targets.filter(t => t.faction === undefined && Math.hypot(t.X, t.Z) < 450).length;
@@ -236,7 +236,7 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   // Buildings never sit on the road or the railway.
   let onLine = 0;
   for (let seed = 1; seed <= 20; seed++) {
-    const m = PA.makeMission('jet', seed, PA.MISSIONS[9]);
+    const m = PA.makeMission('jet', seed, PA.MISSIONS[12]);
     for (const t of m.targets) {
       if (!['farm', 'barn', 'city', 'hangar', 'barracks'].includes(t.kind)) continue;
       if (Math.abs(t.X - PA.ROAD_X) < 25 || Math.abs(t.X - PA.RAIL_X) < 25) onLine++;
@@ -270,9 +270,9 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
     }
     return seen.size;
   };
-  check('calm: range day, nothing fires at the plane in 2 minutes', fired(1) === 0, 'shots ' + fired(1));
-  check('calm: first contact, nothing but a fighter fires in 2 minutes', fired(2) <= 12, 'shots ' + fired(2));
-  check('guns: coast watch fires at the plane', fired(3) > 0, 'shots ' + fired(3));
+  check('calm: range day, nothing fires at the plane in 2 minutes', fired(4) === 0, 'shots ' + fired(4));
+  check('calm: first contact, nothing but a fighter fires in 2 minutes', fired(5) <= 12, 'shots ' + fired(5));
+  check('guns: coast watch fires at the plane', fired(6) > 0, 'shots ' + fired(6));
 
   const g = new PA.Game({ mode: 'jet', control: 'drag', view: 'chase', difficulty: 'felix', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 0, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0, flightHelp: 1 });
   g.onSound = () => {}; g.mission.targets = [];
@@ -522,10 +522,10 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'felix', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 0, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0 };
   const g = new PA.Game(st);
   // a gun mission (Coast Watch), so bases and their guns come up
-  g.missionNumber = 3; g.newFlight(7);
+  g.missionNumber = 6; g.newFlight(7);   // Coast Watch
   g.onSound = () => {};
   const cities0 = g.mission.targets.filter(t => t.kind === 'city').length;
-  g.plane.Z = 900;
+  g.plane.Z = 1200;   // bases come up 900 m ahead, every 2 km
   g.update(1 / 30);
   const cities1 = g.mission.targets.filter(t => t.kind === 'city').length;
   const allies = g.mission.targets.filter(t => t.faction === 'ally' && t.orbit && t.orbit.r === 450).length;
@@ -538,7 +538,7 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   const setup = (kind, X, Z, h) => {
     const g = new PA.Game(st);
     // a gun mission (Coast Watch), so the ground guns are live
-    g.missionNumber = 3; g.newFlight(7);
+    g.missionNumber = 6; g.newFlight(7);   // Coast Watch
     g.onSound = () => {};
     g.plane.start(0, 0, h, 50, 0, 0, 0.36);
     const t = PA.target(kind, X, Z, () => 0.5);
@@ -567,7 +567,7 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 1, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0, flightHelp: 1 };
   const g = new PA.Game(st);
   // a gun mission (Coast Watch), so the ground guns are live
-  g.missionNumber = 3; g.newFlight(7);
+  g.missionNumber = 6; g.newFlight(7);   // Coast Watch
   g.onSound = () => {};
   g.plane.start(0, 0, 200, 50, 0, 0, 0.36);
   const sam = PA.target('sam', 600, 300, () => 0.5);   // ahead and to the right
@@ -664,6 +664,106 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   for (let i = 0; i < 30 * 200; i++) r.update(1 / 30);
   const done = r.rivals.filter(x => x.done).length;
   check('race: the rivals fly both laps and finish', done === 3, done + ' finished, times ' + r.race.results.map(x => x.time.toFixed(0)).join(', '));
+}
+
+// 40. Hostile only: the missile lock and the guns ignore neutral buildings, civilians and allies.
+{
+  check('hostile: enemy guns, tanks and fighters are hostile', PA.isHostile({ kind: 'tank_mbt' }) && PA.isHostile({ kind: 'fighter', faction: 'enemy' }) && PA.isHostile({ kind: 'sam' }));
+  check('hostile: farms, towns, trucks, rail and allies are neutral', !PA.isHostile({ kind: 'farm' }) && !PA.isHostile({ kind: 'city' }) && !PA.isHostile({ kind: 'truck' }) && !PA.isHostile({ kind: 'rail' }) && !PA.isHostile({ kind: 'ally', faction: 'ally' }));
+  const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 1, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0 };
+  const g = new PA.Game(st);
+  g.onSound = () => {};
+  g.mission.targets = [{ kind: 'city', X: 0, Z: 300, alive: true, points: 120, hp: 3, cool: 0 }];
+  g.plane.X = 0; g.plane.Z = 0; g.plane.yaw = 0;
+  check('hostile: a town straight ahead is not a lock target', g.candidate() === null);
+  g.mission.targets.push({ kind: 'tank_mbt', X: 0, Z: 500, alive: true, points: 100, hp: 2, cool: 0 });
+  const lock = g.candidate();
+  check('hostile: a tank straight ahead is a lock target', lock !== null && lock.kind === 'tank_mbt');
+}
+
+// 41. Dots: fly roughly over each in order, from any height. Out of order does not count.
+{
+  const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 1, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0 };
+  const g = new PA.Game(st);
+  g.onSound = () => {};
+  g.missionNumber = 1; g.newFlight(21);
+  const hs = g.mission.hoops;
+  check('dots: six dots, the first mission, no fighters or guns', g.missionSpec.goal === 'dots' && hs.length === 6 && hs.every(h => h.dot) && !g.missionSpec.guns && g.missionSpec.wave === 0);
+  const at = (h, extra) => { g.plane.X = h.X; g.plane.Z = h.Z; g.plane.h = PA.groundAt(h.X, h.Z) + extra; g.plane.vx = 50; g.plane.vy = 0; };
+  at(hs[1], 30); g.update(1 / 30);
+  check('dots: a dot out of order does not count', g.hoopsPassed === 0 && !hs[1].passed);
+  at(hs[0], 30); g.update(1 / 30);
+  check('dots: the first counts when flown over', hs[0].passed && g.hoopsPassed === 1);
+  at(hs[1], 150); g.update(1 / 30);
+  check('dots: height does not matter, the second counts', hs[1].passed && g.hoopsPassed === 2);
+  for (let k = 2; k < hs.length; k++) { at(hs[k], 30); g.update(1 / 30); }
+  check('dots: the mission goes on to the next one when all six are flown', g.missionNumber === 2, 'mission ' + g.missionNumber);
+}
+
+// 42. Rings: fly through each in order, at the ring's height. A ring out of line does not count.
+{
+  const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 1, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0 };
+  const g = new PA.Game(st);
+  g.onSound = () => {};
+  g.missionNumber = 2; g.newFlight(22);
+  const hs = g.mission.hoops;
+  check('rings: eight rings, small, facing north', g.missionSpec.goal === 'rings' && hs.length === 8 && hs.every(h => !h.dot && h.r === 10));
+  g.plane.X = hs[0].X; g.plane.Z = hs[0].Z; g.plane.h = hs[0].h + 30; g.plane.vx = 50; g.plane.vy = 0;
+  g.update(1 / 30);
+  check('rings: a ring flown 30 m high does not count', !hs[0].passed);
+  g.plane.X = hs[0].X; g.plane.Z = hs[0].Z; g.plane.h = hs[0].h; g.plane.vx = 50; g.plane.vy = 0;
+  g.update(1 / 30);
+  check('rings: flown through at its height, it counts', hs[0].passed && g.hoopsPassed === 1);
+}
+
+// 43. The circuit: four racers (two friends, two allied planes) at 50–90% of the optimum speed,
+//     pace dropping by up to 15% now and then. Two laps finish the race.
+{
+  const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 1, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 2 };
+  const g = new PA.Game(st);
+  g.onSound = () => {};
+  g.missionNumber = 3; g.newFlight(23);
+  check('circuit: a race of eight gates, two laps, four racers', g.missionSpec.goal === 'race' && g.mission.hoops.length === PA.RACE_GATES && g.race && g.race.laps === 2 && g.rivals.length === 4);
+  check('circuit: racers at 50–90% of the optimum pace', g.rivals.every(r => r.vmax >= 0.5 * PA.RACE_OPTIMUM - 1e-6 && r.vmax <= 0.9 * PA.RACE_OPTIMUM + 1e-6), g.rivals.map(r => r.vmax.toFixed(1)).join(', '));
+  check('circuit: no allies from the settings spawn during the race', g.mission.targets.filter(t => t.faction === 'ally' && t.orbit).length === 0);
+  for (let i = 0; i < 30 * 60; i++) g.update(1 / 30);
+  check('circuit: racers never exceed their top pace', g.rivals.every(r => r.v <= r.vmax * 1.02 + 0.5), g.rivals.map(r => r.v.toFixed(1)).join(', '));
+  check('circuit: racers make progress round the course', g.rivals.some(r => r.lap > 1 || r.next > 0));
+  const hs = g.mission.hoops;
+  for (let lap = 0; lap < 2; lap++) {
+    for (let k = 0; k < hs.length; k++) {
+      g.plane.X = hs[k].X; g.plane.Z = hs[k].Z; g.plane.h = hs[k].h; g.plane.vx = 50; g.plane.vy = 0;
+      g.update(1 / 30);
+    }
+  }
+  check('circuit: two laps finish, the overlay goes to the results', g.race.finished && g.phase === 'landed');
+  const before = g.missionNumber;
+  g.endMission();
+  check('end mission: the next mission starts, restocked', g.missionNumber === before + 1 && g.phase === 'flying' && g.hull === 100);
+}
+
+// 44. Flak and damage: a flak round bursts by its fuse (airframe damage, smoke over the view, a
+//     jolt); a hit shakes the screen by its size, and the shake dies away.
+{
+  const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 0, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0 };
+  const g = new PA.Game(st);
+  g.onSound = () => {};
+  g.missionNumber = 6; g.newFlight(31);
+  g.mission.targets = [];
+  const p = g.plane;
+  const hull0 = g.hull;
+  g.shells.push({ X: p.X + 10, Z: p.Z, h: p.h, vX: 0, vY: 0, vZ: 0, life: 2, dmg: 12, r: 18, flak: true });
+  g.update(1 / 30);
+  check('flak: a burst close by damages the airframe', g.hull < hull0 && g.hits === 1, 'hull ' + g.hull);
+  check('flak: the smoke hides the view', g.dazzle > 0.3, 'dazzle ' + g.dazzle.toFixed(2));
+  check('flak: the burst jolts the screen', g.shake > 0.2, 'shake ' + g.shake.toFixed(2));
+  const shakeHit = g.shake;
+  for (let i = 0; i < 30 * 3; i++) g.update(1 / 30);
+  check('shake: it dies away after a few seconds', g.shake < shakeHit && g.shake < 0.05, 'shake ' + g.shake.toFixed(2));
+  (g).takeHit(45);
+  const missile = g.shake;
+  (g).takeHit(4);
+  check('shake: a missile shakes harder than a bullet', missile >= 0.99 && g.shake >= missile - 1e-9, 'missile ' + missile.toFixed(2) + ', after a bullet ' + g.shake.toFixed(2));
 }
 
 console.log(failures === 0 ? '\nAll flight checks passed.' : '\n' + failures + ' check(s) failed.');

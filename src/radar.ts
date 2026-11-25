@@ -41,9 +41,12 @@ namespace PA {
       return [c + (r / RANGE) * R, c - (f / RANGE) * R];
     };
 
-    // Mission targets beyond the rim: an arrow on the rim pointing toward each one.
-    for (const t of g.mission.targets) {
-      if (!t.alive || !g.countsForObjective(t) || place(t.X, t.Z)) continue;
+    // Mission targets beyond the rim, and the next training dot or ring: an arrow on the rim toward each.
+    const rim: { X: number; Z: number }[] = g.mission.targets.filter(t => t.alive && g.countsForObjective(t));
+    const nextHoop = g.mission.hoops.find(h => !h.passed);
+    if (nextHoop && !g.race) rim.push(nextHoop);
+    for (const t of rim) {
+      if (place(t.X, t.Z)) continue;
       const dx = t.X - p.X, dz = t.Z - p.Z;
       const f = dx * sinY + dz * cosY;
       const r = dx * cosY - dz * sinY;
@@ -70,7 +73,7 @@ namespace PA {
       let heading: number;
       if (t.faction === 'enemy') heading = t.vH ?? 0;
       else if (t.orbit) heading = Math.atan2(-Math.sin(t.orbit.ang), Math.cos(t.orbit.ang));
-      else heading = 0;
+      else heading = t.vH ?? 0;
       // Turn the heading into a direction on the radar (up is the plane's nose).
       const rel = heading - p.yaw;
       const dx2 = Math.sin(rel), dy2 = -Math.cos(rel);
@@ -98,14 +101,31 @@ namespace PA {
       ctx.fillStyle = t.faction === 'enemy' ? '#ff6b6b' : gunner ? '#ffb02e' : DOT[info ? info.group : 'army'];
       ctx.fillRect(Math.round(q[0]) - 2, Math.round(q[1]) - 2, 4, 4);
     }
-    for (const h of g.mission.hoops) {
-      if (h.passed) continue;
+    const inOrder = !g.race && isOrderedGoal(g.missionSpec.goal);
+    g.mission.hoops.forEach((h, idx) => {
+      if (h.passed) return;
       const q = place(h.X, h.Z);
-      if (q) {
+      if (!q) return;
+      if (!inOrder) {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(Math.round(q[0]) - 1, Math.round(q[1]) - 1, 3, 3);
+        return;
       }
-    }
+      // Training in order: each one is numbered; the next one is lit.
+      const next = idx === g.mission.hoops.findIndex(x => !x.passed);
+      ctx.fillStyle = next ? '#ffe94a' : '#ffffff';
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(q[0], q[1], next ? 5 : 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      if (next || idx < 9) {
+        ctx.font = 'bold 9px system-ui, sans-serif';
+        ctx.fillStyle = INK;
+        ctx.fillText(String(idx + 1), q[0] + 6, q[1] + 3);
+      }
+    });
 
     // The plane: a point at the centre, pointing up (the heading).
     ctx.fillStyle = INK;

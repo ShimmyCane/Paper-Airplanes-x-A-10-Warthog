@@ -71,3 +71,13 @@
 - **Check which mode runs before blaming the physics.** The 100-knot "wall" was the default lever (36%), not the drag model.
 - **A rule set on one list must reach every spawner.** Route bases and tank guns ignored the mission's guns setting. Gate the firing, not just the spawn.
 - **Tests that set up the thing under test must use the mode it needs.** After calm missions became the default, gun tests needed a gun mission.
+
+## 2026-11-25 (round 16, convo v0.23)
+
+- **A rule that says "targetable" must be checked in every path.** The lock was fixed first, but the gun aim and the bullets still reached neutral buildings. Make one `isHostile` helper and call it from the lock, the aim and the hit loop.
+- **Order matters inside one frame.** The mission-complete check ran before the dot check, so the mission advanced one frame late and a test that checked straight after the last dot failed. Run the thing that changes the count before the thing that reads it.
+- **Tests that name missions by position break when the list grows.** Thirteen missions shifted every index. Refer to a mission by its number in one place, or look it up by name.
+- **Resolution changes need a transform, not new constants.** Keeping the layout in 480×270 units and drawing through `setTransform(RES)` raised the detail four times without touching every size in `render.ts`. The per-pixel background is the one place that must use device pixels.
+- **Check the default mode before a browser test.** The page opens in paper-glider mode, so a test that expected missions saw none. Switch the mode in the test first.
+- **Shake belongs on the element, not the canvas drawing.** A CSS transform on the view canvas shakes the picture without repainting it, and the scale hides the edges.
+- **A village is a cluster, not a scatter.** Five percent of farm cells with one house each read as isolated; a 10% chance of three or four houses together reads as a place.

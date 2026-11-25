@@ -1,11 +1,15 @@
 // Shared numbers for the whole game. Change a number here, rebuild, reload.
 namespace PA {
-  export const VERSION = '0.22 (2026-11-22: calm missions silent, no backward flight, default lever 60%, pitch limit)';
+  export const VERSION = '0.23 (2026-11-25: training dots, rings and a circuit race; flak bursts; screen shake; hostile-only lock)';
 
   // Internal resolution. The canvas is small on purpose: every pixel is a
   // "pixel-art pixel", and the page scales it up with no smoothing.
+  // Layout and drawing use these 480×270 units. The canvas is RES times as many pixels on each
+  // side (960×540 at RES 2, four times the pixels), so the ground and sky are painted finer and
+  // the sprites keep their shapes.
   export const W = 480;
   export const H = 270;
+  export const RES = 2;
 
   // Side view, 2.5D: screen pixels per metre, across and up.
   export const PPM_X = 2;

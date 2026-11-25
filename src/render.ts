@@ -21,6 +21,7 @@ namespace PA {
   const OBJECT_SCALE = 1.5;   // models are drawn half again larger than life, so they read well
   const FAR_LOD = 450;        // beyond this the ground is painted every other pixel
   const DETAIL_NEAR = 260;    // fine ground detail fades out by this distance
+  const LANE_Z0 = 150, LANE_X0 = 60;   // where the country lanes cross the origin
   const TREE_RANGE = 11;      // forest squares drawn each way (40 m squares)
 
   // The sun: low in the south-west sky, behind and to the left when flying north, so
@@ -192,6 +193,9 @@ namespace PA {
     } else {
       readFields(X, Z);
       const roadD = Math.abs(X - ROAD_X), railD = Math.abs(X - RAIL_X);
+      // Country lanes: a loose grid, east-west every 430 m and north-south every 510 m, in farm and open land.
+      const laneZ = Math.abs(mod(Z - LANE_Z0 + 215, 430) - 215), laneX = Math.abs(mod(X - LANE_X0 + 255, 510) - 255);
+      const laneD = Math.min(laneZ, laneX);
       if (roadD < ROAD_W + 1.6) {
         if (roadD > ROAD_W) { r = 196; g = 184; b = 160; }
         else {
@@ -201,8 +205,30 @@ namespace PA {
         }
       } else if (railD < 2.4) {
         r = 172; g = 162; b = 146;
-        if (railD < 1.8 && mod(Z, 1.5) < 0.55) { r = 118; g = 90; b = 68; }
-        if (railD > 0.62 && railD < 0.86) { r = 88; g = 94; b = 100; }
+        if (laneZ < 2.8) {
+          // A level crossing: the lane runs over the line on white and grey planks.
+          r = 226; g = 224; b = 218;
+          if (mod(X, 1.1) < 0.5) { r = 128; g = 124; b = 120; }
+        } else {
+          if (railD < 1.8 && mod(Z, 1.5) < 0.55) { r = 118; g = 90; b = 68; }
+          if (railD > 0.62 && railD < 0.86) { r = 88; g = 94; b = 100; }
+        }
+      } else if (railD < 3.8) {
+        // Ballast: the gravel either side of the track, speckled.
+        const stone = hash2(Math.floor(X * 3), Math.floor(Z * 3));
+        r = 188 - 14 * stone; g = 178 - 14 * stone; b = 162 - 12 * stone;
+      } else if (laneD < 3.6 && fRegion < 0.66 && fWild < FOREST_LEVEL) {
+        if (laneD < 2.8) {
+          // The lane: warm grey tarmac, a pale edge line each side.
+          r = 206; g = 196; b = 176;
+          if (laneD > 1.9) { r = 238; g = 232; b = 216; }
+        } else {
+          r = 150; g = 196; b = 112;                                      // the verge
+        }
+      } else if (fRegion < 0.42 && fWild < FOREST_LEVEL && pondAt(X, Z) > 0) {
+        // A pond in the fields: water with a sandy rim.
+        if (pondAt(X, Z) === 2) { r = 236; g = 220; b = 168; }
+        else { water = true; r = 116; g = 196; b = 220; }
       } else if (fWild > LAKE_LEVEL && roadD > 30 && railD > 20) {
         water = true;
         const deep = Math.min(1, (fWild - LAKE_LEVEL) / 0.06);
@@ -215,18 +241,24 @@ namespace PA {
         const m = 0.88 + 0.24 * fVar;
         r = 112 * m; g = 170 * m; b = 92 * m;
       } else if (fRegion < 0.42) {
-        // Farm fields: patches on a tilted grid, each its own crop, sown in rows, with hedges.
-        const pu = (X * 0.94 + Z * 0.34) / 70, pv = (Z * 0.94 - X * 0.34) / 46;
+        // Farm fields: plots on a tilted grid, each its own crop and its own shade, sown in rows,
+        // with hedges between them. The plots are smaller than a field, so the land reads as farmland.
+        const pu = (X * 0.94 + Z * 0.34) / 36, pv = (Z * 0.94 - X * 0.34) / 26;
         const iu = Math.floor(pu), iv = Math.floor(pv);
         const fu = pu - iu, fv = pv - iv;
-        const crop = hash2(iu + 977, iv - 311);
-        if (crop < 0.24) { r = 236; g = 208; b = 118; }                 // wheat
-        else if (crop < 0.46) { r = 150; g = 206; b = 104; }            // green crop
-        else if (crop < 0.62) { r = 182; g = 134; b = 92; }             // ploughed earth
-        else if (crop < 0.8) { r = 170; g = 216; b = 128; }             // meadow
-        else if (crop < 0.9) { r = 244; g = 214; b = 86; }              // sunflowers
+        const plot = hash2(iu + 977, iv - 311);
+        const shade = 0.9 + 0.2 * hash2(iu - 53, iv + 211);            // each plot a little lighter or darker
+        if (plot < 0.2) { r = 236; g = 208; b = 118; }                  // wheat
+        else if (plot < 0.34) { r = 150; g = 206; b = 104; }            // green crop
+        else if (plot < 0.44) { r = 182; g = 134; b = 92; }             // ploughed earth
+        else if (plot < 0.54) { r = 206; g = 178; b = 120; }            // stubble
+        else if (plot < 0.64) { r = 120; g = 158; b = 74; }             // maize
+        else if (plot < 0.74) { r = 170; g = 216; b = 128; }            // meadow
+        else if (plot < 0.82) { r = 246; g = 226; b = 80; }             // rapeseed
+        else if (plot < 0.9) { r = 244; g = 214; b = 86; }              // sunflowers
         else { r = 186; g = 166; b = 222; }                             // lavender
-        if (near > 0 && mod(fu * 26, 1) < 0.45) { r *= 0.9; g *= 0.9; b *= 0.9; }
+        r *= shade; g *= shade; b *= shade;
+        if (near > 0 && mod(fu * 22, 1) < 0.45) { r *= 0.9; g *= 0.9; b *= 0.9; }   // the rows
         if (fu < 0.03 || fv < 0.045) { r = 92; g = 150; b = 84; }        // hedges
         const far = Math.min(1, Math.max(0, (dist - 380) / 320));       // far away: an even field colour
         r += (186 - r) * far; g += (196 - g) * far; b += (120 - b) * far;
@@ -318,20 +350,24 @@ namespace PA {
   let halfGround = false;     // set when a device is too slow: the ground is painted every other column
 
   function paintBackground(ctx: CanvasRenderingContext2D, g: Game, c: Cam): void {
-    if (!bg) {
-      bg = ctx.createImageData(W, H);
+    // The background is painted per device pixel: WD × HD of them, each a ray through the
+    // camera. F is the focal length in device pixels.
+    const WD = W * RES, HD = H * RES, F = FOCAL * RES;
+    if (!bg || bg.width !== WD || bg.height !== HD) {
+      bg = ctx.createImageData(WD, HD);
       bg32 = new Uint32Array(bg.data.buffer);
     }
     const t = g.time;
     const camY = Math.max(1, c.py);
     const sunScreen = project(c, c.px + SUN.x * 8000, c.py + SUN.y * 8000, c.pz + SUN.z * 8000);
-    for (let y = 0; y < H; y++) {
-      const by = (H / 2 - (y + 0.5)) / FOCAL;
+    const sunX = sunScreen ? sunScreen[0] * RES : 0, sunY = sunScreen ? sunScreen[1] * RES : 0;
+    for (let y = 0; y < HD; y++) {
+      const by = (HD / 2 - (y + 0.5)) / F;
       const r0x = c.fx + by * c.ux, r0y = c.fy + by * c.uy, r0z = c.fz + by * c.uz;
       let prev = 0;
-      const row = y * W;
-      for (let x = 0; x < W; x++) {
-        const ax = (x + 0.5 - W / 2) / FOCAL;
+      const row = y * WD;
+      for (let x = 0; x < WD; x++) {
+        const ax = (x + 0.5 - WD / 2) / F;
         const dx = r0x + ax * c.rx, dy = r0y + ax * c.ry, dz = r0z + ax * c.rz;
         let col: number;
         if (dy < -0.0004) {
@@ -342,9 +378,9 @@ namespace PA {
           col = groundColor(c.px + tt * dx, c.pz + tt * dz, dist, dx / len, dy / len, dz / len, t);
         } else {
           // The open sky is smooth: work out one pixel in four, except near the horizon and the sun.
-          const nearSun = sunScreen !== null && Math.abs(x - sunScreen[0]) < 70 && Math.abs(y - sunScreen[1]) < 70;
+          const nearSun = sunScreen !== null && Math.abs(x - sunX) < 70 * RES && Math.abs(y - sunY) < 70 * RES;
           if (dy > 0.1 && !nearSun && ((x & 1) === 1 || (y & 1) === 1)) {
-            bg32[row + x] = (x & 1) === 1 ? prev : bg32[row - W + x];
+            bg32[row + x] = (x & 1) === 1 ? prev : bg32[row - WD + x];
             prev = bg32[row + x];
             continue;
           }
@@ -399,14 +435,14 @@ namespace PA {
   function textures() {
     if (TEX) return TEX;
     const vig = document.createElement('canvas');
-    vig.width = W; vig.height = H;
+    vig.width = W * RES; vig.height = H * RES;
     const vx = vig.getContext('2d');
     if (vx) {
-      const grad = vx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.62);
+      const grad = vx.createRadialGradient(vig.width / 2, vig.height / 2, vig.height * 0.35, vig.width / 2, vig.height / 2, vig.width * 0.62);
       grad.addColorStop(0, 'rgba(20,24,40,0)');
       grad.addColorStop(1, 'rgba(20,24,40,0.32)');
       vx.fillStyle = grad;
-      vx.fillRect(0, 0, W, H);
+      vx.fillRect(0, 0, vig.width, vig.height);
     }
     TEX = {
       mist: softDisc(64, [[0, 'rgba(255,255,255,0.85)'], [0.5, 'rgba(255,255,255,0.35)'], [1, 'rgba(255,255,255,0)']]),
@@ -538,6 +574,13 @@ namespace PA {
           const v = cellNoise(i, j, 67);
           const name = v < 0.4 ? 'house1' : v < 0.7 ? 'house2' : v < 0.85 ? 'city1' : 'city';
           add(name, cx + 4, 0, cz + 4, Math.floor(v * 4) * (Math.PI / 2), false);
+        } else if (biome === 'farm' && cellNoise(i, j, 97) < 0.1) {
+          // A village: three or four houses close together, each turned a little differently.
+          for (let k = 0; k < 4; k++) {
+            if (k === 3 && cellNoise(i, j, 127) < 0.5) break;
+            const hx = cx + (cellNoise(i, j, 101 + k) - 0.5) * 26, hz = cz + (cellNoise(i, j, 117 + k) - 0.5) * 26;
+            add(cellNoise(i, j, 131 + k) < 0.6 ? 'farm' : 'barn', hx, 0, hz, cellNoise(i, j, 137 + k) * 6.28, false);
+          }
         } else if (biome === 'farm' && cellNoise(i, j, 89) < 0.035) {
           add('windmill', cx - 6, 0, cz + 3, cellNoise(i, j, 91) * 6.28, false);
         } else if (biome === 'farm' && cellNoise(i, j, 71) < 0.05) {
@@ -830,11 +873,54 @@ namespace PA {
   }
 
   // Glider rings: glowing hoops standing across the heading.
+  // A training dot: a flat coloured disc on the ground with a beacon and its number, so you can
+  // read the order at a glance. The next one is yellow, the one after it orange, flown ones green.
+  function dotMarker(ctx: CanvasRenderingContext2D, c: Cam, dot: Hoop, idx: number, lit: boolean, after: boolean): void {
+    const p = project(c, dot.X, groundAt(dot.X, dot.Z) + 0.5, dot.Z);
+    if (!p) return;
+    const depth = p[2];
+    const radius = Math.max(3, Math.min(60, dot.r * FOCAL / depth));
+    const beacon = Math.max(4, Math.min(80, 30 * FOCAL / depth));
+    const colour = lit ? '#ffe94a' : after ? '#ffc58a' : dot.passed ? '#7fe0a0' : '#ffb08a';
+    ctx.globalAlpha = fogAlpha(depth);
+    ctx.fillStyle = dot.passed ? 'rgba(127,224,160,0.35)' : 'rgba(255,240,150,0.4)';
+    ctx.beginPath();
+    ctx.ellipse(p[0], p[1], radius, radius * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = Math.max(1, radius * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(p[0], p[1]);
+    ctx.lineTo(p[0], p[1] - beacon);
+    ctx.stroke();
+    ctx.fillStyle = colour;
+    ctx.beginPath();
+    ctx.arc(p[0], p[1] - beacon, Math.max(2, radius * 0.22), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    const size = Math.max(7, Math.min(22, 10 * FOCAL / depth * 0.6));
+    ctx.font = 'bold ' + Math.round(size) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,253,247,0.95)';
+    ctx.strokeText(String(idx + 1), p[0], p[1] - beacon - size * 0.6);
+    ctx.fillStyle = INK;
+    ctx.fillText(String(idx + 1), p[0], p[1] - beacon - size * 0.6);
+    ctx.textAlign = 'start';
+    ctx.globalAlpha = 1;
+  }
+
   function rings(ctx: CanvasRenderingContext2D, g: Game, c: Cam): void {
-    const next = g.race && !g.race.finished ? g.race.next : -1;
+    const inOrder = g.race ? !g.race.finished : isOrderedGoal(g.missionSpec.goal);
+    const next = g.race && !g.race.finished ? g.race.next : inOrder ? g.mission.hoops.findIndex(h => !h.passed) : -1;
     const hoops = g.mission.hoops;
     for (let idx = 0; idx < hoops.length; idx++) {
       const ring = hoops[idx];
+      if (ring.dot) {
+        dotMarker(ctx, c, ring, idx, idx === next, idx === next + 1);
+        continue;
+      }
       // Drone gates face along the course; glider rings always face the plane.
       const ry = ring.yaw ?? g.plane.yaw;
       const rhx = Math.cos(ry), rhz = -Math.sin(ry);
@@ -1223,6 +1309,15 @@ namespace PA {
   // How long each stage took on the last frame, in milliseconds (for tuning).
   export const renderStats = { background: 0, objects: 0, total: 0, things: 0 };
 
+  // Flak smoke in the pilot's view: a grey veil that fades as the smoke clears.
+  function dazzleVeil(ctx: CanvasRenderingContext2D, g: Game): void {
+    if (g.dazzle <= 0) return;
+    ctx.globalAlpha = Math.min(0.85, g.dazzle);
+    ctx.fillStyle = '#d8d2c6';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
   export function render(ctx: CanvasRenderingContext2D, g: Game): void {
     const t0 = performance.now();
     cacheFrame();
@@ -1231,12 +1326,14 @@ namespace PA {
     const c = makeCam(g);
     paintBackground(ctx, g, c);
     const t1 = performance.now();
+    // Everything from here is drawn in layout units (480×270), scaled up to the canvas.
+    ctx.setTransform(RES, 0, 0, RES, 0, 0);
     clouds(ctx, g, c);
     objects(ctx, g, c);
     birds(ctx, g, c);
     const t2 = performance.now();
     const droneMode = g.settings.mode === 'drone';
-    if ((g.settings.view !== 'cockpit' || droneMode) && (g.mission.mode === 'glider' || droneMode)) rings(ctx, g, c);
+    if ((g.settings.view !== 'cockpit' || droneMode) && g.mission.hoops.length > 0) rings(ctx, g, c);
     tracers(ctx, c, g.shots, 'rgba(255,236,150,0.95)', 0.35);
     tracers(ctx, c, g.shells, 'rgba(255,150,90,0.9)', 0.5);
     missiles(ctx, g, c);
@@ -1254,6 +1351,8 @@ namespace PA {
       else cockpit(ctx, g);
     }
     if (g.settings.forces) forces(ctx, g);
+    dazzleVeil(ctx, g);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(textures().vignette, 0, 0);
     const t3 = performance.now();
     renderStats.background = renderStats.background * 0.9 + (t1 - t0) * 0.1;

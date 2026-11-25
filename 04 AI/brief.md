@@ -111,3 +111,15 @@ A browser 2.5D pixel-art flight game, built small enough to read, so Jimmy can s
 - Drone flight: four drones, Mode 2/1/3 sticks, a two-lap gate race with three rivals, best time on the device.
 - Notes SQL rewritten (reset, `owner` access); not applied.
 - Checks: `npm test` all pass; browser screenshots, no errors. Not tested on an iPad.
+
+## Round 16 (convo v0.23): training, race, flak, shake, lock, graphics
+
+- Missions: three training and race missions first (Dots, Rings, Circuit), then the ten fights. End mission button; a finished race offers Next mission.
+- Race: two friends and two allied planes at 50–90% of the optimum speed, with up to a 15% drop now and then.
+- Lock and bullets: hostile units only (`isHostile`). Buildings, towns, farms, trucks, rail, fuel and allies are neutral.
+- Flak: a fuse burst, airframe damage, smoke over the view that fades, and a screen jolt. Screen shake scales with damage and dies away (CSS on the view canvas).
+- Spread: clusters 220 m apart, fighters 1.5–1.8 km out, bases every 2 km.
+- Graphics (`research/graphics_todo.md`): five increments: canvas 960×540 (four times the pixels; layout still 480×270 units), farmland plots with more crops, country lanes, village houses and farm ponds, railway ballast with level crossings.
+- Checks: `npm test` (flight, mission, race, flak and shake checks); browser at three sizes, no console errors, no horizontal scroll.
+- Not verified on an iPad: the frame rate at 960×540 (headless: about half as fast; `halfGround` helps on slow devices).
+- Open: the sprites still use the old voxel size, so models are not finer yet.
