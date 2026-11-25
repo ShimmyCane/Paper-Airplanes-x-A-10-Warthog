@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Paper Airplanes × A-10 Warthog</title>
-  <link rel="stylesheet" href="css/app.css?v=0.23.1">
+  <link rel="stylesheet" href="css/app.css?v=0.25">
 </head>
 <body>
   <main class="play" id="play">
@@ -28,6 +28,7 @@
       <span class="stall" id="stall" hidden>STALL</span>
     </div>
 
+    <span class="pill sunPill" id="sunTime">14:30</span>
     <p class="msg" id="msg" aria-live="polite"></p>
     <p class="objective" id="objective" aria-live="polite"></p>
     <button class="endMission" id="endMission" type="button" hidden>End mission ▸</button>
@@ -136,6 +137,7 @@
                 <button type="button" data-v="cockpit">Cockpit</button>
               </div>
               <p class="hint">Also V on a keyboard.</p>
+
             </div>
             <div class="setting">
               <label>Steering</label>
@@ -275,6 +277,15 @@
 
     </details>
 
+    <details class="group" id="questionsGroup">
+      <summary>❓ Questions for Jimmy</summary>
+      <p class="hint">Answer these in the notes box below. Say which sun time or weather you were in.</p>
+      <ol class="questions">
+        <li>How does the sky feel on the iPad at each sun time (dawn, afternoon, dusk, night)?</li>
+        <li>Do the clouds and the weather (rain, thunder, dust, wind) look right, and not too dark?</li>
+        <li>Do the houses, trees and the plane take the sun's colour at dusk the way you expect?</li>
+      </ol>
+    </details>
     <details class="group" id="notesGroup">
       <summary>📝 Notes</summary>
             <div class="setting">
@@ -336,6 +347,6 @@
 
   <div class="errorsPanel" id="errorsPanel" hidden></div>
 
-  <script src="js/game.js?v=0.23.1"></script>
+  <script src="js/game.js?v=0.25"></script>
 </body>
 </html>

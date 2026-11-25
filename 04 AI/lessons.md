@@ -81,3 +81,31 @@
 - **Check the default mode before a browser test.** The page opens in paper-glider mode, so a test that expected missions saw none. Switch the mode in the test first.
 - **Shake belongs on the element, not the canvas drawing.** A CSS transform on the view canvas shakes the picture without repainting it, and the scale hides the edges.
 - **A village is a cluster, not a scatter.** Five percent of farm cells with one house each read as isolated; a 10% chance of three or four houses together reads as a place.
+
+## 2026-11-25 (round 17, the landscape)
+
+- **Keep the sun in one vector and derive everything from it.** Sky, sun disc, flare, water glint, ground light and object shadows all read the same sun vector from the frame's light. The first version had the sun fixed in the code, and moving it meant editing five places.
+- **Shadow length is 1/tan(elevation), so clamp the elevation.** Near the horizon a tower's shadow runs off to kilometres, and at sunset it is negative. Clamp the angle to a few degrees for the stretch, and switch shadows off below 2°.
+- **Night needs an ambient floor, or the ground is black.** At 19:30 the ground was almost black; a floor of 0.16 on the sky's colour keeps it dim and readable. Check a dusk screenshot, not only a noon one.
+- **Do not evaluate a noise field per pixel for clouds.** A density grid of 30 m cells round the camera, refreshed every 0.4 s (the wind moves the deck about a metre in that time), makes each sky and ground lookup four reads instead of three noise octaves.
+- **A test for drift must pick a point on a cloud edge.** At a fully covered or fully clear point the density is 0 or 1 at every time, so the check failed for no real reason; search for a point where it changes.
+- **Game time tied to flight time runs slower when frames are slow.** The step is capped at 1/30 s, so a headless browser at 15 fps moves the clock at half speed. Test the clock with explicit update counts, not with wall-clock waits.
+- **Check the astronomy against known values before trusting it.** Noon at 51° N in early October must be about 36° high and due south, and the sun must set in the late afternoon. The first sunset note said 18:10; the formula gave 17:33. Fix the note to the number the code gives.
+- **A corner readout collides with the HUD.** The time line sat over the ammo and missile pills at the top. Put a new readout in a free corner (top right) and check it at 390 px.
+- **Borrow from a sister project's history, not from another repo.** The Generate Clouds code was read from the Index repo's history, which the nursery keeps. Say where a borrowed idea came from in the research README, and cut it back to the page's resolution (the full volumetric march is not kept).
+
+## 2026-11-25 (round 18, real-time sun, weather, object light)
+
+- **A stretched fill covers only what the transform says.** The rain veil covered only the top-left quarter: an earlier step had left the drawing transform at 1×, so `fillRect(0,0,W,H)` filled 480×270 device pixels. The seam sat at the screen centre. Set the transform inside each overlay function, do not inherit it.
+- **Find the cause by removing one thing at a time.** Clear weather had no seam; rain did. Switching off the ground shadow did not help; switching off the overlay did. Three one-shot renders found it in a few minutes.
+- **A coarse cloud grid shows its own cell edges and window edges.** The window edge is faded over the last 900 m, so no line shows at its border.
+- **Tint by caching a copy, not by painting over the picture.** Each model's slices are multiplied by the light's tint and kept per light level (quantised to a twelfth, up to six sets). Painting a veil over objects would also tint the sky behind them.
+- **Keep the transparent outline when tinting.** Multiply fills the whole canvas and makes the transparent pixels opaque; a `destination-in` pass with the original brings the outline back.
+- **Real time means a mission starts at its own hour.** A 1-minute-per-minute clock with per-mission start times gives dawn, afternoon and dusk missions without any setting. The first version had a sun-speed setting; Jimmy's answer ("nothing static") removed it.
+- **Weather is per flight, from the seed.** The cover threshold is the one knob that gives clear, scattered, overcast and rain from the same noise; calibrate the threshold against the cover share with a sweep, not by eye.
+- **Put the open questions beside the feedback box.** A "Questions" group in ⚙️ keeps the answers tied to the screen they are about.
+
+## 2026-11-25 (fix: sprites off-centre and half size since the 960×540 change)
+
+- **A helper that resets the transform to 1× breaks every later draw.** The sprite code set an absolute matrix in layout units and then reset to identity. After the first sprite, the plane and everything drawn after it used device pixels, so the plane sat a quarter of the way across and objects were half size. The check that caught it was a screenshot against an old one, not the tests. Every reset goes back to the layout scale (`resetLayout` in `voxel.ts`), and every absolute matrix multiplies by RES (`setLayout`).
+- **Compare a new screenshot with an old one of the same view.** The plane was centred in the 480×270 frames and not in the 960×540 frames; a side-by-side made the change obvious.

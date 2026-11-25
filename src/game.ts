@@ -264,6 +264,11 @@ namespace PA {
     held: Held = { fire: false, boost: false, missile: false };
     axes: Axes = { yaw: 0, pitch: 0 };
     throttleSet = CRUISE_THROTTLE;   // the throttle lever, used when the flight helper is off
+    clock = START_HOUR;              // the solar clock, hours from midnight: each mission starts at its own time
+    weather: Weather = 'clear';      // this flight's weather (light.ts WEATHER)
+    flashT = 0;                      // seconds of lightning flash left
+    private thunderIn = 8;           // seconds until the next strike
+    private boomIn = 0;              // seconds until its thunder is heard
     pads: Pads = { lx: 0, ly: 0, rx: 0, ry: 0 };   // drone flight: the two sticks
     race: Race | null = null;
     rivals: Rival[] = [];
@@ -284,6 +289,8 @@ namespace PA {
       const ammo = this.ammo, missiles = this.missileStock, chaff = this.chaff;
       this.seed = seed;
       this.missionSpec = missionFor(this.missionNumber);
+      this.clock = this.missionSpec.sunStart;
+      this.weather = weatherFor(seed);
       this.mission = makeMission(this.settings.mode, seed, this.missionSpec);
       this.rand = random(seed + 7);
       this.plane = this.settings.mode === 'drone' ? new Drone(this.settings.droneKind || 'camera') : new Aircraft(this.settings.mode === 'jet');
@@ -375,9 +382,15 @@ namespace PA {
       this.onSound('chaff');
     }
 
+    get light(): Light {
+      return lightAt(this.clock);
+    }
+
     update(dtIn: number): void {
       if (this.paused) return;
       const dt = Math.min(dtIn, 1 / 30);
+      this.clock = wrapHours(this.clock + dt / 3600);   // real time: an hour is an hour
+      this.updateWeather(dt);
       this.updatePuffs(dt);
       this.burnWrecks(dt);
       this.updateMarks(dt);
@@ -684,6 +697,22 @@ namespace PA {
     isTraining(): boolean {
       const goal = this.missionSpec.goal;
       return isOrderedGoal(goal) || goal === 'race';
+    }
+
+    // Lightning now and then in a thunderstorm: a flash at once, the thunder a second or two later.
+    private updateWeather(dt: number): void {
+      this.flashT = Math.max(0, this.flashT - dt);
+      if (this.boomIn > 0) {
+        this.boomIn -= dt;
+        if (this.boomIn <= 0) this.onSound('boom');
+      }
+      if (!WEATHER[this.weather].thunder) return;
+      this.thunderIn -= dt;
+      if (this.thunderIn <= 0) {
+        this.flashT = 0.6;
+        this.boomIn = 1 + this.rand() * 1.5;
+        this.thunderIn = 6 + this.rand() * 10;
+      }
     }
 
     // Finishing a mission (or the End mission button): the next one starts, fully restocked.
@@ -1430,6 +1459,14 @@ namespace PA {
 
     // An explosion: a fireball that flares and fades, smoke that rolls up and spreads, and sparks.
     private explode(X: number, h: number, Z: number, n: number): void {
+      // In wind or a dust storm the blast throws up dust, which the wind carries off.
+      if (WEATHER[this.weather].dust || this.weather === 'windy') {
+        for (let i = 0; i < 4; i++) {
+          const a = this.rand() * Math.PI * 2, sp = 2 + this.rand() * 4;
+          this.puffs.push({ X, h, Z, vX: Math.cos(a) * sp + WIND.X, vY: 1 + this.rand() * 3, vZ: Math.sin(a) * sp + WIND.Z,
+            life: 1.2 + this.rand() * 0.8, max: 2, color: '#d8c49a', size: 4 + this.rand() * 4, kind: 'dust' });
+        }
+      }
       const fire = Math.max(3, Math.round(n * 0.5)), smoke = Math.max(3, Math.round(n * 0.45)), sparks = Math.round(n * 0.4);
       for (let i = 0; i < fire; i++) {
         const a = this.rand() * Math.PI * 2, sp = 3 + this.rand() * 10;

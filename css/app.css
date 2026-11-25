@@ -516,6 +516,13 @@ textarea.field { resize: vertical; font-size: 15px; }
 .objective:empty { display: none; }
 
 /* End mission: a small button under the objective line, to go on to the next mission. */
+.sunPill {
+  position: absolute;
+  top: 12px;
+  right: 64px;
+  font-size: 14px;
+}
+
 .endMission {
   position: absolute;
   left: 50%;
@@ -579,3 +586,7 @@ body.drone .objective { display: none; }
 body.drone .hud > :not(.keep), body.drone .jetOnly { display: none; }
 body.drone .gear { top: 12px; bottom: auto; }
 body.drone .drawer { top: 92px; bottom: auto; }
+
+/* Questions for Jimmy in the ⚙️ panel: short numbered prompts, answered in the notes box. */
+.questions { margin: 6px 0 0; padding-left: 20px; font-size: 14px; }
+.questions li { margin: 4px 0; }

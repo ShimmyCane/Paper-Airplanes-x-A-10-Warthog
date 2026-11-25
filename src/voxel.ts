@@ -231,6 +231,15 @@ namespace PA {
   }
 
   // Draw the stack. Far away it becomes a few layers, then a single dot.
+  // Layout transforms: positions and sizes are in layout units (480×270); the canvas is RES times
+  // that. A sprite sets its own matrix in layout units, and puts the layout scale back after itself.
+  export function setLayout(ctx: CanvasRenderingContext2D, a: number, b: number, c: number, d: number, e: number, f: number): void {
+    ctx.setTransform(a * RES, b * RES, c * RES, d * RES, e * RES, f * RES);
+  }
+  export function resetLayout(ctx: CanvasRenderingContext2D): void {
+    ctx.setTransform(RES, 0, 0, RES, 0, 0);
+  }
+
   export function drawModel(ctx: CanvasRenderingContext2D, m: Model, p: Pose): void {
     const wide = Math.max(m.w, m.l) * p.px;
     if (wide < 2.5) {
@@ -251,11 +260,11 @@ namespace PA {
       const k = m.top > 0 ? (z / m.top) * (z / m.top) * sway : 0;
       for (let s = 0; s < sub; s++) {
         const off = (z + s / sub) * f.step;
-        ctx.setTransform(f.a, f.b, f.c, f.d, p.sx + ex + f.sr * off + f.cr * k, p.sy + ey - f.cr * off + f.sr * k);
+        setLayout(ctx, f.a, f.b, f.c, f.d, p.sx + ex + f.sr * off + f.cr * k, p.sy + ey - f.cr * off + f.sr * k);
         ctx.drawImage(slice, 0, 0);
       }
     }
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    resetLayout(ctx);
   }
 
   // A cache of finished stacks, for models that look the same from every heading (trees).
@@ -321,8 +330,8 @@ namespace PA {
     const cr = Math.cos(p.roll), sr = Math.sin(p.roll);
     const lean = e.lift > 1 ? -(p.sway || 0) / (e.lift * s) : 0;   // sideways per pixel of height
     // Matrix = translate(sx,sy) * rotate(roll) * scale(s) * shear(lean)
-    ctx.setTransform(cr * s, sr * s, (cr * lean - sr) * s, (sr * lean + cr) * s, p.sx, p.sy);
+    setLayout(ctx, cr * s, sr * s, (cr * lean - sr) * s, (sr * lean + cr) * s, p.sx, p.sy);
     ctx.drawImage(e.img, -e.ox, -e.oy);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    resetLayout(ctx);
   }
 }

@@ -24,20 +24,69 @@ namespace PA {
   const LANE_Z0 = 150, LANE_X0 = 60;   // where the country lanes cross the origin
   const TREE_RANGE = 11;      // forest squares drawn each way (40 m squares)
 
-  // The sun: low in the south-west sky, behind and to the left when flying north, so
-  // things are lit from the front, shadows fall ahead, and the light is warm.
-  const SUN = (() => {
-    const x = -0.5, y = 0.45, z = -0.74, l = Math.hypot(x, y, z);
-    return { x: x / l, y: y / l, z: z / l };
-  })();
-  // Shadow direction per metre of height (away from the sun, along the ground).
-  const SHADOW_X = -SUN.x / SUN.y, SHADOW_Z = -SUN.z / SUN.y;
+  // The light this frame, set by setLight(): the sun (its direction and colour), the sky palette,
+  // and the object shadows' stretch: metres along the ground per metre of height, away from the sun.
+  let L: Light = lightAt(START_HOUR);
+  let SHADOW_X = 0, SHADOW_Z = 0;
+  let shadowsOn = true;
+  let tintTint: RGB = [1, 1, 1];
+  let WX = WEATHER.clear;     // this flight's weather
+  let tintKey = '';
+  let tintSet: { [name: string]: Model } = {};
+  const tintSets = new Map<string, { [name: string]: Model }>();
+  // The model as the light makes it: slices multiplied by the tint, cached per light key.
+  function litModel(name: string): Model {
+    const hit = tintSet[name];
+    if (hit) return hit;
+    const base = model(name);
+    const full = tintTint.every(v => v >= 0.97);
+    const m = full ? base : { ...base, slices: base.slices.map(cv => (cv ? tintCanvas(cv, tintTint) : null)) };
+    tintSet[name] = m;
+    return m;
+  }
+
+  function tintCanvas(src: HTMLCanvasElement, tint: RGB): HTMLCanvasElement {
+    const cv = document.createElement('canvas');
+    cv.width = src.width; cv.height = src.height;
+    const x = cv.getContext('2d');
+    if (!x) return src;
+    x.drawImage(src, 0, 0);
+    x.globalCompositeOperation = 'multiply';
+    x.fillStyle = 'rgb(' + Math.round(tint[0] * 255) + ',' + Math.round(tint[1] * 255) + ',' + Math.round(tint[2] * 255) + ')';
+    x.fillRect(0, 0, cv.width, cv.height);
+    x.globalCompositeOperation = 'destination-in';   // keep the model's own outline and transparency
+    x.drawImage(src, 0, 0);
+    return cv;
+  }
+
+  function setLight(g: Game): void {
+    const base = g.light;
+    WX = WEATHER[g.weather];
+    // Weather: a storm dims the sun and the sky light, and dust turns the haze brown.
+    const storm = WX.storm, dust = WX.dust ? 0.75 : 0;
+    const horizon = base.horizon.map((v, k) => v + ([205, 170, 120][k] - v) * dust) as RGB;
+    L = { ...base, direct: base.direct * (1 - 0.4 * storm), horizon, ambient: base.ambient.map(v => v * (1 - 0.35 * storm)) as RGB };
+    // Objects take the light's tint (quantised, so the cache is reused as the sun moves).
+    const tint = lightTint(L);
+    const key = tint.map(v => Math.round(v * 12)).join(',');
+    if (key !== tintKey) {
+      tintKey = key;
+      tintSet = tintSets.get(key) ?? {};
+      if (!tintSets.has(key)) {
+        if (tintSets.size >= 6) tintSets.delete(tintSets.keys().next().value as string);
+        tintSets.set(key, tintSet);
+      }
+      tintTint = tint;
+    }
+    const el = Math.max(3, L.el) * Math.PI / 180;
+    const hz = Math.hypot(L.sun[0], L.sun[2]) || 1;
+    const stretch = 1 / Math.tan(el);
+    SHADOW_X = -(L.sun[0] / hz) * stretch;
+    SHADOW_Z = -(L.sun[2] / hz) * stretch;
+    shadowsOn = L.el > 2;
+  }
 
   // Colours (red, green, blue).
-  const ZENITH = [78, 152, 222];
-  const HORIZON = [246, 226, 206];
-  const HAZE = [236, 226, 212];
-  const HAZE_PACKED = (0xff000000 | (212 << 16) | (226 << 8) | 236) >>> 0;
 
   // Camera placement for each view: how far behind the plane, how high, how far it looks down.
   const VIEWS = {
@@ -174,7 +223,7 @@ namespace PA {
   // The ground's colour at (X, Z), seen along the unit ray (dx, dy, dz) from distance dist.
   function groundColor(X: number, Z: number, dist: number, dx: number, dy: number, dz: number, t: number): number {
     const fog = fogAt(dist);
-    if (fog > 0.985) return HAZE_PACKED;
+    if (fog > 0.985) return pack(L.horizon[0], L.horizon[1], L.horizon[2]);
     const near = Math.max(0, 1 - dist / DETAIL_NEAR);
     let r = 0, g = 0, b = 0;
     let water = false;
@@ -289,29 +338,30 @@ namespace PA {
       }
     }
 
+    // Light: the sun's colour times how much of it reaches the ground (less under cloud), plus the
+    // sky's own light. At night the ground goes dark; at dusk it takes the sky's warmth.
+    const shade = L.direct > 0 && dist < 2600 ? cloudShadowAt(X, Z) : 0;
+    const lit = L.direct * (1 - shade);
+    r *= (L.ambient[0] * 0.7 + (L.sunCol[0] / 255) * 0.5 * lit) * 1.1;
+    g *= (L.ambient[1] * 0.7 + (L.sunCol[1] / 255) * 0.5 * lit) * 1.1;
+    b *= (L.ambient[2] * 0.7 + (L.sunCol[2] / 255) * 0.5 * lit) * 1.1;
+
     if (water) {
       // Waves, the sky reflected at a low angle, and the sun glittering on the water.
       const wave = Math.sin(X * 0.11 + t * 1.3) * Math.sin(Z * 0.09 - t * 0.9) * 0.5 + Math.sin((X + Z) * 0.05 + t * 0.7) * 0.5;
       const k = 1 + wave * 0.06;
       r *= k; g *= k; b *= k;
       const q = 1 + dy, q2 = q * q, fres = q2 * q2 * q;
-      r += (HORIZON[0] - r) * fres * 0.7; g += (HORIZON[1] - g) * fres * 0.7; b += (HORIZON[2] - b) * fres * 0.7;
-      const refl = dx * SUN.x - dy * SUN.y + dz * SUN.z;
+      r += (L.horizon[0] - r) * fres * 0.7; g += (L.horizon[1] - g) * fres * 0.7; b += (L.horizon[2] - b) * fres * 0.7;
+      const refl = dx * L.sun[0] + dy * L.sun[1] + dz * L.sun[2];
       if (refl > 0.94) {
         const u = (refl - 0.94) / 0.06, u2 = u * u;
         const glint = u2 * u2 * u2 * (0.5 + 0.5 * Math.sin(X * 1.7 + Z * 1.3 + t * 6));
         r += 255 * glint; g += 245 * glint; b += 220 * glint;
       }
-    } else if (dist < 900) {
-      // Cloud shadows drifting across the land.
-      const cs = noise2((X + t * 6) / 340, Z / 340);
-      if (cs > 0.56) {
-        const s = 1 - Math.min(1, (cs - 0.56) / 0.12) * 0.2;
-        r *= s; g *= s; b *= s;
-      }
     }
 
-    r += (HAZE[0] - r) * fog; g += (HAZE[1] - g) * fog; b += (HAZE[2] - b) * fog;
+    r += (L.horizon[0] - r) * fog; g += (L.horizon[1] - g) * fog; b += (L.horizon[2] - b) * fog;
     return pack(Math.min(255, r), Math.min(255, g), Math.min(255, b));
   }
 
@@ -319,10 +369,10 @@ namespace PA {
   function skyColor(dx: number, dy: number, dz: number): number {
     const k = Math.min(1, Math.max(0, dy / 0.55));
     const s = k * k * (3 - 2 * k);
-    let r = HORIZON[0] + (ZENITH[0] - HORIZON[0]) * s;
-    let g = HORIZON[1] + (ZENITH[1] - HORIZON[1]) * s;
-    let b = HORIZON[2] + (ZENITH[2] - HORIZON[2]) * s;
-    const sun = dx * SUN.x + dy * SUN.y + dz * SUN.z;
+    let r = L.horizon[0] + (L.zenith[0] - L.horizon[0]) * s;
+    let g = L.horizon[1] + (L.zenith[1] - L.horizon[1]) * s;
+    let b = L.horizon[2] + (L.zenith[2] - L.horizon[2]) * s;
+    const sun = dx * L.sun[0] + dy * L.sun[1] + dz * L.sun[2];
     if (sun > 0.3) {
       const s2 = sun * sun, s6 = s2 * s2 * s2, s12 = s6 * s6, s48 = s12 * s12 * s12 * s12;
       const wide = s6 * 0.22, glow = s48 * 0.55;
@@ -340,7 +390,7 @@ namespace PA {
         else { r = 182; g = 198; b = 214; }
       } else { return pack(r, g, b); }
       const hz = 0.45;
-      r += (HAZE[0] - r) * hz; g += (HAZE[1] - g) * hz; b += (HAZE[2] - b) * hz;
+      r += (L.horizon[0] - r) * hz; g += (L.horizon[1] - g) * hz; b += (L.horizon[2] - b) * hz;
     }
     return pack(r, g, b);
   }
@@ -359,7 +409,7 @@ namespace PA {
     }
     const t = g.time;
     const camY = Math.max(1, c.py);
-    const sunScreen = project(c, c.px + SUN.x * 8000, c.py + SUN.y * 8000, c.pz + SUN.z * 8000);
+    const sunScreen = project(c, c.px + L.sun[0] * 8000, c.py + L.sun[1] * 8000, c.pz + L.sun[2] * 8000);
     const sunX = sunScreen ? sunScreen[0] * RES : 0, sunY = sunScreen ? sunScreen[1] * RES : 0;
     for (let y = 0; y < HD; y++) {
       const by = (HD / 2 - (y + 0.5)) / F;
@@ -386,6 +436,8 @@ namespace PA {
           }
           const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
           col = skyColor(dx / len, dy / len, dz / len);
+          const cl = cloudOverSky(c.px, c.py, c.pz, dx / len, dy / len, dz / len);
+          if (cl) col = blendPacked(col, cl);
         }
         bg32[row + x] = col;
         prev = col;
@@ -408,29 +460,7 @@ namespace PA {
     return cv;
   }
 
-  let TEX: { mist: HTMLCanvasElement; glow: HTMLCanvasElement; fire: HTMLCanvasElement; smoke: HTMLCanvasElement; dust: HTMLCanvasElement; shadow: HTMLCanvasElement; clouds: HTMLCanvasElement[]; vignette: HTMLCanvasElement } | null = null;
-
-  function cloudTexture(seed: number): HTMLCanvasElement {
-    const cv = document.createElement('canvas');
-    cv.width = 160; cv.height = 80;
-    const x = cv.getContext('2d');
-    if (!x) return cv;
-    const rnd = random(seed);
-    const blobs: [number, number, number][] = [];
-    for (let i = 0; i < 9; i++) blobs.push([30 + rnd() * 100, 34 + rnd() * 18, 14 + rnd() * 16]);
-    // Shaded underside first, then the lit tops.
-    for (const [bx, by, br] of blobs) {
-      const g1 = x.createRadialGradient(bx, by + 6, 0, bx, by + 6, br);
-      g1.addColorStop(0, 'rgba(206,214,228,0.9)'); g1.addColorStop(1, 'rgba(206,214,228,0)');
-      x.fillStyle = g1; x.fillRect(0, 0, 160, 80);
-    }
-    for (const [bx, by, br] of blobs) {
-      const g2 = x.createRadialGradient(bx - 3, by - 4, 0, bx - 3, by - 4, br * 0.9);
-      g2.addColorStop(0, 'rgba(255,255,255,0.95)'); g2.addColorStop(0.6, 'rgba(255,252,246,0.7)'); g2.addColorStop(1, 'rgba(255,252,246,0)');
-      x.fillStyle = g2; x.fillRect(0, 0, 160, 80);
-    }
-    return cv;
-  }
+  let TEX: { mist: HTMLCanvasElement; glow: HTMLCanvasElement; fire: HTMLCanvasElement; smoke: HTMLCanvasElement; dust: HTMLCanvasElement; shadow: HTMLCanvasElement; vignette: HTMLCanvasElement } | null = null;
 
   function textures() {
     if (TEX) return TEX;
@@ -451,7 +481,6 @@ namespace PA {
       smoke: softDisc(64, [[0, 'rgba(120,118,124,0.75)'], [0.55, 'rgba(140,138,146,0.35)'], [1, 'rgba(150,150,156,0)']]),
       dust: softDisc(64, [[0, 'rgba(214,196,160,0.7)'], [1, 'rgba(214,196,160,0)']]),
       shadow: softDisc(64, [[0, 'rgba(24,30,46,0.45)'], [0.6, 'rgba(24,30,46,0.25)'], [1, 'rgba(24,30,46,0)']]),
-      clouds: [cloudTexture(3), cloudTexture(11), cloudTexture(29), cloudTexture(47)],
       vignette: vig,
     };
     return TEX;
@@ -475,32 +504,85 @@ namespace PA {
     return cv;
   }
 
-  // ---- 2. Clouds ----------------------------------------------------------------------
+  // ---- 2. Clouds: one deck over the land, lit by the sun, casting shadows on the ground ----
+  //
+  // The deck's density (light.ts, from Generate Clouds' noise) is sampled on a grid of 30 m cells
+  // round the camera, once every few frames. A sky ray that meets the deck, and a ground point whose
+  // sun ray does, read the grid: a few lookups per pixel, not a noise field.
 
-  function clouds(ctx: CanvasRenderingContext2D, g: Game, c: Cam): void {
-    const tex = textures();
-    const cell = 420;
-    const i0 = Math.floor(c.px / cell) - 5, j0 = Math.floor(c.pz / cell) - 5;
-    const list: [number, number, number, number, number][] = [];
-    for (let i = i0; i <= i0 + 10; i++) {
-      for (let j = j0; j <= j0 + 10; j++) {
-        if (cellNoise(i, j, 23) < 0.42) continue;
-        const X = i * cell + cellNoise(i, j, 29) * 300 + g.time * 4;
-        const Z = j * cell + cellNoise(i, j, 31) * 300;
-        const h = 190 + cellNoise(i, j, 37) * 90;
-        const p = project(c, X, h, Z);
-        if (!p || p[2] < 80) continue;
-        list.push([p[0], p[1], p[2], 100 + cellNoise(i, j, 41) * 90, Math.floor(cellNoise(i, j, 43) * 4)]);
+  const CG_CELL = 60;             // metres per grid cell
+  const CG_N = 200;               // cells a side: a 6 km window round the camera
+  const cloudGrid = new Float32Array(CG_N * CG_N);
+  let cgX0 = 0, cgZ0 = 0, cgT = -1e9;
+
+  let cgCover = -1, cgWind = -1;
+  function updateClouds(t: number, camX: number, camZ: number): void {
+    const half = (CG_N * CG_CELL) / 2;
+    const recentre = Math.abs(camX - cgX0 - half) > 600 || Math.abs(camZ - cgZ0 - half) > 600;
+    if (!recentre && Math.abs(t - cgT) < 0.4 && cgCover === WX.cover && cgWind === WX.wind) return;
+    cgCover = WX.cover; cgWind = WX.wind;
+    cgX0 = Math.round((camX - half) / CG_CELL) * CG_CELL;
+    cgZ0 = Math.round((camZ - half) / CG_CELL) * CG_CELL;
+    for (let j = 0; j < CG_N; j++) {
+      for (let i = 0; i < CG_N; i++) {
+        cloudGrid[j * CG_N + i] = cloudDensity(cgX0 + i * CG_CELL, cgZ0 + j * CG_CELL, t, WX.cover, WX.wind);
       }
     }
-    list.sort((a, b) => b[2] - a[2]);
-    for (const [x, y, zc, size, v] of list) {
-      const w = (size * FOCAL) / zc;
-      if (w < 4) continue;
-      ctx.globalAlpha = Math.max(0, 1 - (1 - Math.exp(-zc / (FOG * 1.6))) * 0.9);
-      ctx.drawImage(tex.clouds[v], x - w / 2, y - w / 4, w, w / 2);
-    }
-    ctx.globalAlpha = 1;
+    cgT = t;
+  }
+
+  // The cloud density at (X, Z): bilinear in the grid, and none outside it.
+  function cloudAt(X: number, Z: number): number {
+    const fx = (X - cgX0) / CG_CELL, fz = (Z - cgZ0) / CG_CELL;
+    if (fx < 0 || fz < 0 || fx >= CG_N - 1 || fz >= CG_N - 1) return 0;
+    const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
+    const k = j * CG_N + i;
+    const a = cloudGrid[k], b = cloudGrid[k + 1], c = cloudGrid[k + CG_N], d = cloudGrid[k + CG_N + 1];
+    // Fade to nothing over the last 900 m of the window, so its edge never shows as a line.
+    const edge = smooth01(Math.min(fx, CG_N - 1 - fx, fz, CG_N - 1 - fz) * CG_CELL / 900);
+    return (a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v) * edge;
+  }
+
+  // The share of the sun's light a cloud takes from ground point (X, Z): the deck on the sun's ray.
+  function cloudShadowAt(X: number, Z: number): number {
+    const el = Math.max(2, L.el) * Math.PI / 180;
+    const hz = Math.hypot(L.sun[0], L.sun[2]) || 1;
+    const reach = CLOUD_BASE / Math.tan(el);
+    const d = cloudAt(X + (L.sun[0] / hz) * reach, Z + (L.sun[2] / hz) * reach);
+    return Math.min(0.7, d * 0.7);
+  }
+
+  // The deck seen along a sky ray from the camera: [r, g, b, opacity], or null if the ray misses it.
+  // The cloud is lit by the sun's colour where the sun reaches it (Beer's law, two samples toward the
+  // sun) and takes the sky's ambient colour on its shaded side. It fades into the haze with distance.
+  function cloudOverSky(px: number, py: number, pz: number, dx: number, dy: number, dz: number): [number, number, number, number] | null {
+    if (Math.abs(dy) < 0.02 || (CLOUD_BASE - py) * dy <= 0) return null;
+    const t = (CLOUD_BASE - py) / dy;
+    const x = px + dx * t, z = pz + dz * t;
+    const d = cloudAt(x, z);
+    if (d <= 0.02) return null;
+    const hz = Math.hypot(L.sun[0], L.sun[2]) || 1;
+    const d2 = cloudAt(x + (L.sun[0] / hz) * 90, z + (L.sun[2] / hz) * 90);
+    const sunlit = Math.exp(-(d * 0.9 + d2 * 1.4)) * L.direct;   // how much sun gets through to this point
+    const far = 1 - smooth01((t - 1200) / 3500);
+    const op = Math.min(0.85, d * 1.1) * far;
+    if (op <= 0.01) return null;
+    // The shaded side takes the sky's ambient colour; the lit side the sun's colour, lifted toward white.
+    const shade = [0, 1, 2].map(k => L.ambient[k] * 255 * 0.9 * (1 - 0.3 * WX.storm));
+    const lit = [0, 1, 2].map(k => (L.sunCol[k] + 255) / 2);
+    return [
+      shade[0] + (lit[0] - shade[0]) * sunlit, shade[1] + (lit[1] - shade[1]) * sunlit, shade[2] + (lit[2] - shade[2]) * sunlit, op];
+  }
+
+  function smooth01(v: number): number {
+    const x = Math.max(0, Math.min(1, v));
+    return x * x * (3 - 2 * x);
+  }
+
+  function blendPacked(col: number, cl: [number, number, number, number]): number {
+    const a = cl[3];
+    const r0 = col & 255, g0 = (col >>> 8) & 255, b0 = (col >>> 16) & 255;
+    return pack(r0 + (cl[0] - r0) * a, g0 + (cl[1] - g0) * a, b0 + (cl[2] - b0) * a);
   }
 
   // ---- 3. Objects ---------------------------------------------------------------------
@@ -610,6 +692,7 @@ namespace PA {
 
   // A shadow the shape of the model, laid on the ground away from the sun.
   function drawShadow(ctx: CanvasRenderingContext2D, c: Cam, name: string, X: number, base: number, Z: number, yaw: number): void {
+    if (!shadowsOn) return;
     const m = model(name);
     const lift = base + m.h * m.size * OBJECT_SCALE * 0.35;
     const sx = X + SHADOW_X * lift, sz = Z + SHADOW_Z * lift;
@@ -629,7 +712,7 @@ namespace PA {
     const time = g.time;
     const p = g.plane;
     for (const th of things) {
-      const m = model(th.name);
+      const m = litModel(th.name);
       const ship = th.name === 'ship';
       const base = ship ? th.base + Math.sin(time * 0.9 + th.phase) * 0.25 : th.base;
       const pose = poseOf(c, m, th.X, base, th.Z, th.yaw);
@@ -639,14 +722,14 @@ namespace PA {
       if (th.name.startsWith('tree')) pose.sway = Math.sin(time * 1.3 + th.phase) * pose.px * 0.8;
       if (ship) pose.roll += Math.sin(time * 0.7 + th.phase) * 0.04;
       if (th.air && th.t) pose.roll += bankOf(th.t, pose.yaw);
-      if (th.name.startsWith('tree')) drawModelCached(ctx, m, th.name, { ...pose, yaw: th.yaw });   // a tree looks the same from every side
+      if (th.name.startsWith('tree')) drawModelCached(ctx, m, th.name + tintKey, { ...pose, yaw: th.yaw });   // a tree looks the same from every side
       else drawModel(ctx, m, pose);
 
       if (pose.px < 0.5) continue;
       if (th.name === 'tank_mbt' || th.name === 'tank_light') {
         // The turret turns to track the plane when it is near.
         const mbt = th.name === 'tank_mbt';
-        const tm = model(mbt ? 'turret_mbt' : 'turret_light');
+        const tm = litModel(mbt ? 'turret_mbt' : 'turret_light');
         const [tx, ty] = modelToScreen(m, pose, mbt ? 7 : 6, mbt ? 14 : 11, mbt ? 4 : 3);
         const near = Math.hypot(p.X - th.X, p.Z - th.Z) < 900;
         const aim = near ? Math.atan2(p.X - th.X, p.Z - th.Z) : th.yaw;
@@ -654,7 +737,7 @@ namespace PA {
       } else if (th.name === 'sam') {
         // The radar dish spins on its mast.
         const [dx, dy] = modelToScreen(m, pose, 11.5, 4, 9);
-        drawModel(ctx, model('samdish'), { ...pose, sx: dx, sy: dy, yaw: time * 2.2 + th.phase - c.yaw });
+        drawModel(ctx, litModel('samdish'), { ...pose, sx: dx, sy: dy, yaw: time * 2.2 + th.phase - c.yaw });
       } else if (th.name === 'farm' || th.name === 'house1' || th.name === 'house2') {
         const [hx, hy] = modelToScreen(m, pose, 12, 5, 13);
         chimneySmoke(ctx, hx, hy, pose.px, time + th.phase, alpha, (WIND.X * c.rx + WIND.Z * c.rz) / Math.hypot(WIND.X, WIND.Z));
@@ -732,7 +815,7 @@ namespace PA {
       bot.push([fx, Hh + wave * 0.9 + sag * 1.8]);
     }
     const cr = Math.cos(roll), sr = Math.sin(roll);
-    ctx.setTransform(cr, sr, -sr, cr, x, y);
+    setLayout(ctx, cr, sr, -sr, cr, x, y);
     const band = (a: [number, number][], b: [number, number][], col: string) => {
       ctx.fillStyle = col;
       ctx.beginPath();
@@ -744,7 +827,7 @@ namespace PA {
     };
     band(top, mid, '#ef7f6a');
     band(mid, bot, '#fff4d6');
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    resetLayout(ctx);
   }
 
   // A windmill's four sails, turning in the breeze.
@@ -966,7 +1049,7 @@ namespace PA {
   function droneSelf(ctx: CanvasRenderingContext2D, g: Game, c: Cam): void {
     const d = g.drone;
     const name = 'drone_' + d.kind;
-    const m = model(name);
+    const m = litModel(name);
     drawShadow(ctx, c, name, d.X, d.h, d.Z, d.yaw);
     const top = g.settings.view === 'top';
     const pose: Pose = {
@@ -1067,7 +1150,7 @@ namespace PA {
     const p = g.plane;
     const glider = g.settings.mode === 'glider';
     const name = glider ? 'glider' : 'plane';
-    const m = model(name);
+    const m = litModel(name);
     const v = VIEWS[g.settings.view];
 
     // Its shadow, the shape of the plane, on the ground.
@@ -1179,7 +1262,7 @@ namespace PA {
 
   // A lens flare when the sun is in front of the camera.
   function lensFlare(ctx: CanvasRenderingContext2D, c: Cam): void {
-    const s = project(c, c.px + SUN.x * 8000, c.py + SUN.y * 8000, c.pz + SUN.z * 8000);
+    const s = project(c, c.px + L.sun[0] * 8000, c.py + L.sun[1] * 8000, c.pz + L.sun[2] * 8000);
     if (!s || s[0] < -40 || s[0] > W + 40 || s[1] < -40 || s[1] > H + 40) return;
     ctx.globalAlpha = 0.6;
     glow(ctx, s[0], s[1], 36);
@@ -1312,10 +1395,36 @@ namespace PA {
   // Flak smoke in the pilot's view: a grey veil that fades as the smoke clears.
   function dazzleVeil(ctx: CanvasRenderingContext2D, g: Game): void {
     if (g.dazzle <= 0) return;
+    ctx.setTransform(RES, 0, 0, RES, 0, 0);
     ctx.globalAlpha = Math.min(0.85, g.dazzle);
     ctx.fillStyle = '#d8d2c6';
     ctx.fillRect(0, 0, W, H);
     ctx.globalAlpha = 1;
+  }
+
+  // Weather over the picture: rain streaks and a grey veil, a tan veil for dust, a white flash.
+  function weatherOverlay(ctx: CanvasRenderingContext2D, g: Game): void {
+    ctx.setTransform(RES, 0, 0, RES, 0, 0);   // the veils cover the whole layout, whatever came before
+    if (WX.rain) {
+      ctx.fillStyle = 'rgba(60,72,96,' + (0.1 + 0.12 * WX.storm).toFixed(3) + ')';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(214,226,242,0.6)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let k = 0; k < 110; k++) {
+        const x = Math.random() * W, y = Math.random() * H;
+        ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 9);
+      }
+      ctx.stroke();
+    }
+    if (WX.dust) {
+      ctx.fillStyle = "rgba(214,180,128,0.32)";
+      ctx.fillRect(0, 0, W, H);
+    }
+    if (g.flashT > 0) {
+      ctx.fillStyle = 'rgba(255,255,250,' + Math.min(0.9, g.flashT * 1.5).toFixed(3) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
   }
 
   export function render(ctx: CanvasRenderingContext2D, g: Game): void {
@@ -1324,11 +1433,12 @@ namespace PA {
     ctx.imageSmoothingEnabled = false;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const c = makeCam(g);
+    setLight(g);
+    updateClouds(g.time, c.px, c.pz);
     paintBackground(ctx, g, c);
     const t1 = performance.now();
     // Everything from here is drawn in layout units (480×270), scaled up to the canvas.
     ctx.setTransform(RES, 0, 0, RES, 0, 0);
-    clouds(ctx, g, c);
     objects(ctx, g, c);
     birds(ctx, g, c);
     const t2 = performance.now();
@@ -1352,6 +1462,7 @@ namespace PA {
     }
     if (g.settings.forces) forces(ctx, g);
     dazzleVeil(ctx, g);
+    weatherOverlay(ctx, g);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(textures().vignette, 0, 0);
     const t3 = performance.now();

@@ -123,3 +123,22 @@ A browser 2.5D pixel-art flight game, built small enough to read, so Jimmy can s
 - Checks: `npm test` (flight, mission, race, flak and shake checks); browser at three sizes, no console errors, no horizontal scroll.
 - Not verified on an iPad: the frame rate at 960×540 (headless: about half as fast; `halfGround` helps on slow devices).
 - Open: the sprites still use the old voxel size, so models are not finer yet.
+
+## Round 17 (convo v0.24): the landscape — sun, shadows, sky, clouds (0.24)
+
+- Research in `research/landscape/` (sun and shadows, sky light by sun height, clouds). Borrowed from the Generate Clouds project: the solar position (Meeus / NOAA), the air and twilight palette, the cloud density noise and the idea of a sun-ray shadow. Read from the Index repo's history (the project graduated 2026-11-24); no other repo was read.
+- `src/light.ts`: the sun for a day (1 October) and place (51° N, longitude 0, solar time), the sun vector, the sun's colour, the sky palette by sun height, the cloud density and the cloud shadow.
+- The solar clock starts at 14:30 and moves with flight time. ⚙️ "Sun still / slow / fast". The readout shows the time and what the sun is doing.
+- Render: the sky palette, the sun disc and flare, the water glint and the ground's light all come from the sun each frame. Object shadows point away from the sun and go when it is below 2°.
+- Clouds: one deck at 520 m, sampled on a 30 m grid round the camera every 0.4 s (not per pixel). Sky rays that meet the deck are blended in; the ground takes the cloud's shadow along the sun ray. The old billboard clouds were removed.
+- Checks: 148 flight and rule checks pass (`npm test`), including the sun at noon and at 14:30, sunset between 17 and 18 UT, the sky and ground by night, cloud cover near 40%, the drift, and the clock speeds. Browser: no errors at three sizes; golden hour, afternoon, civil twilight and night screenshots reviewed.
+- Not verified: frame rate on an iPad (headless: about 15–23 fps with the new cloud pass); the objects are still lit the same at every hour (they do not take the sun's colour); no stars or moon.
+
+## Round 18 (convo v0.24 answers, 0.25): real-time sun, weather, object light
+
+- Each mission starts at its own time of day (`sunStart` in `MISSIONS`) and the sun moves on in real time. The sun setting is gone.
+- Weather is imagined per flight from its seed: clear, scattered, overcast, rain, thunderstorm, windy, dust storm (`WEATHER` in `src/light.ts`). It sets the cloud cover (the noise threshold), the wind (cloud speed), a storm dimming, rain streaks, lightning flashes with delayed thunder, brown haze and a tan veil for dust, and extra dust from explosions in dust or wind.
+- Objects take the sun's colour: each model's slices are multiplied by the light tint and cached per light level (`litModel` in `render.ts`).
+- ⚙️ has a "Questions for Jimmy" group, answered in the notes box.
+- Checks: 152 flight and rule checks pass (`npm test`); browser at three sizes, no errors, no scroll.
+- Not verified: frame rate on an iPad with the weather pass; thunder and rain on an iPad; the tint at dawn; the cloud feel in each weather.
