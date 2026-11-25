@@ -21,6 +21,7 @@ namespace PA {
   const OBJECT_SCALE = 1.5;   // models are drawn half again larger than life, so they read well
   const FAR_LOD = 450;        // beyond this the ground is painted every other pixel
   const DETAIL_NEAR = 260;    // fine ground detail fades out by this distance
+  const LANE_Z0 = 150, LANE_X0 = 60;   // where the country lanes cross the origin
   const TREE_RANGE = 11;      // forest squares drawn each way (40 m squares)
 
   // The sun: low in the south-west sky, behind and to the left when flying north, so
@@ -192,6 +193,9 @@ namespace PA {
     } else {
       readFields(X, Z);
       const roadD = Math.abs(X - ROAD_X), railD = Math.abs(X - RAIL_X);
+      // Country lanes: a loose grid, east-west every 430 m and north-south every 510 m, in farm and open land.
+      const laneZ = Math.abs(mod(Z - LANE_Z0 + 215, 430) - 215), laneX = Math.abs(mod(X - LANE_X0 + 255, 510) - 255);
+      const laneD = Math.min(laneZ, laneX);
       if (roadD < ROAD_W + 1.6) {
         if (roadD > ROAD_W) { r = 196; g = 184; b = 160; }
         else {
@@ -203,6 +207,14 @@ namespace PA {
         r = 172; g = 162; b = 146;
         if (railD < 1.8 && mod(Z, 1.5) < 0.55) { r = 118; g = 90; b = 68; }
         if (railD > 0.62 && railD < 0.86) { r = 88; g = 94; b = 100; }
+      } else if (laneD < 3.6 && fRegion < 0.66 && fWild < FOREST_LEVEL) {
+        if (laneD < 2.8) {
+          // The lane: warm grey tarmac, a pale edge line each side.
+          r = 206; g = 196; b = 176;
+          if (laneD > 1.9) { r = 238; g = 232; b = 216; }
+        } else {
+          r = 150; g = 196; b = 112;                                      // the verge
+        }
       } else if (fWild > LAKE_LEVEL && roadD > 30 && railD > 20) {
         water = true;
         const deep = Math.min(1, (fWild - LAKE_LEVEL) / 0.06);
@@ -215,18 +227,24 @@ namespace PA {
         const m = 0.88 + 0.24 * fVar;
         r = 112 * m; g = 170 * m; b = 92 * m;
       } else if (fRegion < 0.42) {
-        // Farm fields: patches on a tilted grid, each its own crop, sown in rows, with hedges.
-        const pu = (X * 0.94 + Z * 0.34) / 70, pv = (Z * 0.94 - X * 0.34) / 46;
+        // Farm fields: plots on a tilted grid, each its own crop and its own shade, sown in rows,
+        // with hedges between them. The plots are smaller than a field, so the land reads as farmland.
+        const pu = (X * 0.94 + Z * 0.34) / 36, pv = (Z * 0.94 - X * 0.34) / 26;
         const iu = Math.floor(pu), iv = Math.floor(pv);
         const fu = pu - iu, fv = pv - iv;
-        const crop = hash2(iu + 977, iv - 311);
-        if (crop < 0.24) { r = 236; g = 208; b = 118; }                 // wheat
-        else if (crop < 0.46) { r = 150; g = 206; b = 104; }            // green crop
-        else if (crop < 0.62) { r = 182; g = 134; b = 92; }             // ploughed earth
-        else if (crop < 0.8) { r = 170; g = 216; b = 128; }             // meadow
-        else if (crop < 0.9) { r = 244; g = 214; b = 86; }              // sunflowers
+        const plot = hash2(iu + 977, iv - 311);
+        const shade = 0.9 + 0.2 * hash2(iu - 53, iv + 211);            // each plot a little lighter or darker
+        if (plot < 0.2) { r = 236; g = 208; b = 118; }                  // wheat
+        else if (plot < 0.34) { r = 150; g = 206; b = 104; }            // green crop
+        else if (plot < 0.44) { r = 182; g = 134; b = 92; }             // ploughed earth
+        else if (plot < 0.54) { r = 206; g = 178; b = 120; }            // stubble
+        else if (plot < 0.64) { r = 120; g = 158; b = 74; }             // maize
+        else if (plot < 0.74) { r = 170; g = 216; b = 128; }            // meadow
+        else if (plot < 0.82) { r = 246; g = 226; b = 80; }             // rapeseed
+        else if (plot < 0.9) { r = 244; g = 214; b = 86; }              // sunflowers
         else { r = 186; g = 166; b = 222; }                             // lavender
-        if (near > 0 && mod(fu * 26, 1) < 0.45) { r *= 0.9; g *= 0.9; b *= 0.9; }
+        r *= shade; g *= shade; b *= shade;
+        if (near > 0 && mod(fu * 22, 1) < 0.45) { r *= 0.9; g *= 0.9; b *= 0.9; }   // the rows
         if (fu < 0.03 || fv < 0.045) { r = 92; g = 150; b = 84; }        // hedges
         const far = Math.min(1, Math.max(0, (dist - 380) / 320));       // far away: an even field colour
         r += (186 - r) * far; g += (196 - g) * far; b += (120 - b) * far;
