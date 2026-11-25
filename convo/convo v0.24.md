@@ -39,3 +39,13 @@ Jimmy:
 - Object lighting by the sun's colour.
 - A real place or real date.
 - A cloud deck with thickness and storm towers.
+
+## Answers (Jimmy, 2026-11-25)
+
+1. **Start time:** the sun starts at a different time in each mission (dawn, afternoon, dusk), and it moves on in real time during the mission.
+2. **Default:** nothing should be static. The sun setting goes; the sun always runs in real time. Everything should just work.
+3. **Clouds and weather:** cloud cover depends on the imagined weather of the area. Weather covers clear, scattered cloud, overcast, rain, thunder, windy, and dust storms, and it may affect dust storms and explosions. Weather should differ from mission to mission.
+4. **Object colour:** yes. Houses, trees and the plane take the sun's colour at dusk too, and they should render correctly.
+5. **iPad feel:** put these questions in the ⚙️ feedback, so the answer comes with the screen it is about.
+
+Also asked: put the answers and the increment into the Index repo (lessons learned, and an increment for the next round).

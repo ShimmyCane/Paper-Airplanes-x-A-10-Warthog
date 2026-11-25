@@ -92,11 +92,6 @@ namespace PA {
     return { hours, el: p.el, az: p.az, sun, sunCol, direct, zenith: pal.zenith, horizon: pal.horizon, ambient };
   }
 
-  // How fast the solar clock runs, in hours per second of flight: still, slow (an hour in three
-  // minutes, so the sun is seen to move in a mission), fast (an hour a minute).
-  export const SUN_RATES = [0, 1 / 180, 1 / 60];
-  export const SUN_NAMES = ['Still', 'Slow', 'Fast'];
-
   // The solar clock: hours from midnight, wrapped to 0-24.
   export function wrapHours(h: number): number {
     return ((h % 24) + 24) % 24;
@@ -106,16 +101,49 @@ namespace PA {
 
   export const CLOUD_BASE = 520;          // metres: the flat base of the deck
   export const CLOUD_SCALE = 300;         // metres: the size of one cloud cell in the noise
-  export const CLOUD_COVER = 0.42;        // about 40% of the sky is cloud
-  const CLOUD_THRESHOLD = 0.52;           // the noise level above which there is cloud
+  export const CLOUD_COVER = 0.42;        // the default: about 40% of the sky is cloud
+
+  // The weather for a flight. cover: the share of sky under cloud; wind: how fast the cloud moves
+  // (times the wind); storm: 0 to 1, how dark the cloud and the air are; rain, thunder and dust
+  // are what the sky does on top of that.
+  export type Weather = 'clear' | 'scattered' | 'overcast' | 'rain' | 'thunder' | 'windy' | 'dust';
+  export interface WeatherSpec { name: string; cover: number; wind: number; storm: number; rain: boolean; thunder: boolean; dust: boolean; weight: number }
+  export const WEATHER: { [k in Weather]: WeatherSpec } = {
+    clear:     { name: 'Clear', cover: 0.12, wind: 1, storm: 0, rain: false, thunder: false, dust: false, weight: 3 },
+    scattered: { name: 'Scattered cloud', cover: 0.42, wind: 1, storm: 0, rain: false, thunder: false, dust: false, weight: 3 },
+    overcast:  { name: 'Overcast', cover: 0.85, wind: 1, storm: 0.25, rain: false, thunder: false, dust: false, weight: 1 },
+    rain:      { name: 'Rain', cover: 0.9, wind: 1.5, storm: 0.6, rain: true, thunder: false, dust: false, weight: 1 },
+    thunder:   { name: 'Thunderstorm', cover: 0.97, wind: 2.5, storm: 0.9, rain: true, thunder: true, dust: false, weight: 0.5 },
+    windy:     { name: 'Windy', cover: 0.5, wind: 3, storm: 0, rain: false, thunder: false, dust: false, weight: 1 },
+    dust:      { name: 'Dust storm', cover: 0.2, wind: 2, storm: 0.4, rain: false, thunder: false, dust: true, weight: 0.5 },
+  };
+  // The weather for a flight, from its seed: different in each mission, and mostly fair.
+  export function weatherFor(seed: number): Weather {
+    const keys = Object.keys(WEATHER) as Weather[];
+    const total = keys.reduce((s, k) => s + WEATHER[k].weight, 0);
+    let r = (((seed * 2654435761) >>> 0) % 100000) / 100000 * total;
+    for (const k of keys) {
+      r -= WEATHER[k].weight;
+      if (r < 0) return k;
+    }
+    return 'clear';
+  }
 
   // The cloud density at ground position (X, Z) at time t (seconds): 0 is clear, 1 is cloud.
-  // Three octaves of value noise, drifting with the wind. The ramp is soft, so the edges are soft.
-  export function cloudDensity(X: number, Z: number, t: number): number {
-    const u = (X - WIND.X * t) / CLOUD_SCALE, v = (Z - WIND.Z * t) / CLOUD_SCALE;
+  // Three octaves of value noise, drifting with the wind. The threshold moves with the cover, so
+  // more cover means more of the noise is cloud. The ramp is soft, so the edges are soft.
+  export function cloudDensity(X: number, Z: number, t: number, cover = CLOUD_COVER, windScale = 1): number {
+    const u = (X - WIND.X * windScale * t) / CLOUD_SCALE, v = (Z - WIND.Z * windScale * t) / CLOUD_SCALE;
     const f = noise2(u, v) * 0.55 + noise2(u * 2.1 + 5.2, v * 2.1 + 1.3) * 0.3 + noise2(u * 4.3 + 9.1, v * 4.3 + 7.7) * 0.15;
-    const x = (f - CLOUD_THRESHOLD) * 6;
+    const th = 0.52 - (cover - CLOUD_COVER) * 0.45;
+    const x = (f - th) * 6;
     return x <= 0 ? 0 : x >= 1 ? 1 : x;
+  }
+
+  // The object tint: how much of the sun's colour and the sky's light reaches things on the ground,
+  // per channel (0 to 1). Full day is 1 everywhere, dusk takes on the sun's warmth, night is dim.
+  export function lightTint(L: Light): RGB {
+    return [0, 1, 2].map(k => Math.max(0, Math.min(1, L.ambient[k] * 0.8 + (L.sunCol[k] / 255) * 0.5 * L.direct))) as RGB;
   }
 
   // Where the sun's ray from ground point (X, Z) meets the deck, and how much cloud is on it.

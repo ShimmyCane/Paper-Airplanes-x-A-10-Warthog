@@ -1,6 +1,6 @@
 // Shared numbers for the whole game. Change a number here, rebuild, reload.
 namespace PA {
-  export const VERSION = '0.24 (2026-11-25: the sun moves and casts shadows, a cloud deck with shadows, dusk and night)';
+  export const VERSION = '0.25 (2026-11-25: real-time sun from each mission\'s own start, imagined weather, objects take the sun\'s colour, questions in ⚙️)';
 
   // Internal resolution. The canvas is small on purpose: every pixel is a
   // "pixel-art pixel", and the page scales it up with no smoothing.

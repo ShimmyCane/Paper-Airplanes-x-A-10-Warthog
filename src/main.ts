@@ -6,7 +6,7 @@ namespace PA {
     mode: 'glider', control: 'drag', view: 'chase', difficulty: 'felix', sound: 1,
     volMusic: 20, volGun: 25, volTurn: 25, volWarn: 60,
     forces: 0, flightHelp: 1, safeFlight: 1, invincible: 0, autoReload: 1,
-    enemyWave: 1, allies: 1, showErrors: 0, sunClock: 1, droneKind: 'camera', stickMode: 'mode2',
+    enemyWave: 1, allies: 1, showErrors: 0, droneKind: 'camera', stickMode: 'mode2',
   };
   const VIEW_ORDER: View[] = ['chase', 'top', 'cockpit'];
   const TUTORIAL_KEY = 'pa_warthog.tutorialSeen';
@@ -557,7 +557,7 @@ namespace PA {
   // The solar clock in the readout: the time, and what the sun is doing.
   function clockText(hours: number, el: number): string {
     const h = Math.floor(hours), m = Math.floor((hours - h) * 60);
-    const word = el > 10 ? 'high sun' : el > 0 ? 'low sun, long shadows' : el > -6 ? 'dusk' : 'night';
+    const word = el > 10 ? 'high sun' : el > 0 ? 'low sun, long shadows' : el > -12 ? 'dusk' : 'night';
     return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ' · ' + word;
   }
 

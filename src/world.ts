@@ -320,6 +320,7 @@ namespace PA {
   export interface MissionSpec {
     name: string;
     brief: string;
+    sunStart: number;   // the solar clock at the start, hours (the sun then moves on in real time)
     goal: 'ground' | 'air' | 'ship' | 'dots' | 'rings' | 'race';   // dots and rings: training in order; race: laps of a circuit
     count: number;      // how many to destroy
     ships: number;      // ships placed at sea (ship missions)
@@ -331,19 +332,19 @@ namespace PA {
   }
 
   export const MISSIONS: MissionSpec[] = [
-    { name: 'Dots', brief: 'Fly roughly over each dot, in order, up to fifty. The next one is lit on the radar. End mission moves on.', goal: 'dots', count: 50, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
-    { name: 'Rings', brief: 'Fly through each ring, in order. Nothing shoots at you on this one.', goal: 'rings', count: 8, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
-    { name: 'Circuit', brief: 'Two laps of the circuit against two friends and two allied planes. Hold your speed.', goal: 'race', count: 2, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
-    { name: 'Range Day', brief: 'Practice on the range. Three ground targets, no fighters, no guns.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
-    { name: 'First Contact', brief: 'One fighter now and then. Hold the nose on a target until it locks.', goal: 'ground', count: 4, ships: 0, guns: false, start: 'takeoff', firstWave: 90, waveEvery: 90, wave: 2 },
-    { name: 'Coast Watch', brief: 'Two ships off the coast, with flak on the shore.', goal: 'ship', count: 2, ships: 2, guns: true, start: 'takeoff', firstWave: 100, waveEvery: 80, wave: 2 },
-    { name: 'Armour Strike', brief: 'Tanks on the move. Six of them, with a fighter now and then.', goal: 'ground', count: 6, ships: 0, guns: true, start: 'takeoff', firstWave: 120, waveEvery: 100, wave: 2 },
-    { name: 'Intercept', brief: 'Enemy fighters are coming in. Shoot down three.', goal: 'air', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 30, waveEvery: 45, wave: 3 },
-    { name: 'Heading Home', brief: 'Flying home with a fighter on your tail. Break it off, then finish the job.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'return', firstWave: 40, waveEvery: 60, wave: 1 },
-    { name: 'Town Watch', brief: 'The town has SAM sites. Five targets, and stay out of the missiles.', goal: 'ground', count: 5, ships: 0, guns: true, start: 'takeoff', firstWave: 120, waveEvery: 90, wave: 2 },
-    { name: 'Air Superiority', brief: 'Five fighters over the sea lane. Guns and missiles both help.', goal: 'air', count: 5, ships: 0, guns: true, start: 'takeoff', firstWave: 30, waveEvery: 40, wave: 3 },
-    { name: 'Port Strike', brief: 'Three ships in the harbour, with the shore guns awake.', goal: 'ship', count: 3, ships: 3, guns: true, start: 'takeoff', firstWave: 60, waveEvery: 60, wave: 2 },
-    { name: 'Last Light', brief: 'Eight targets before dark, with everything they have. Coming home under fire.', goal: 'ground', count: 8, ships: 0, guns: true, start: 'return', firstWave: 30, waveEvery: 45, wave: 3 },
+    { name: 'Dots', sunStart: 6.6, brief: 'Fly roughly over each dot, in order, up to fifty. The next one is lit on the radar. End mission moves on.', goal: 'dots', count: 50, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+    { name: 'Rings', sunStart: 9.5, brief: 'Fly through each ring, in order. Nothing shoots at you on this one.', goal: 'rings', count: 8, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+    { name: 'Circuit', sunStart: 13.5, brief: 'Two laps of the circuit against two friends and two allied planes. Hold your speed.', goal: 'race', count: 2, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+    { name: 'Range Day', sunStart: 15.2, brief: 'Practice on the range. Three ground targets, no fighters, no guns.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+    { name: 'First Contact', sunStart: 16.8, brief: 'One fighter now and then. Hold the nose on a target until it locks.', goal: 'ground', count: 4, ships: 0, guns: false, start: 'takeoff', firstWave: 90, waveEvery: 90, wave: 2 },
+    { name: 'Coast Watch', sunStart: 17.9, brief: 'Two ships off the coast, with flak on the shore.', goal: 'ship', count: 2, ships: 2, guns: true, start: 'takeoff', firstWave: 100, waveEvery: 80, wave: 2 },
+    { name: 'Armour Strike', sunStart: 18.6, brief: 'Tanks on the move. Six of them, with a fighter now and then.', goal: 'ground', count: 6, ships: 0, guns: true, start: 'takeoff', firstWave: 120, waveEvery: 100, wave: 2 },
+    { name: 'Intercept', sunStart: 19.4, brief: 'Enemy fighters are coming in. Shoot down three.', goal: 'air', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 30, waveEvery: 45, wave: 3 },
+    { name: 'Heading Home', sunStart: 20.3, brief: 'Flying home with a fighter on your tail. Break it off, then finish the job.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'return', firstWave: 40, waveEvery: 60, wave: 1 },
+    { name: 'Town Watch', sunStart: 7.9, brief: 'The town has SAM sites. Five targets, and stay out of the missiles.', goal: 'ground', count: 5, ships: 0, guns: true, start: 'takeoff', firstWave: 120, waveEvery: 90, wave: 2 },
+    { name: 'Air Superiority', sunStart: 11.0, brief: 'Five fighters over the sea lane. Guns and missiles both help.', goal: 'air', count: 5, ships: 0, guns: true, start: 'takeoff', firstWave: 30, waveEvery: 40, wave: 3 },
+    { name: 'Port Strike', sunStart: 14.2, brief: 'Three ships in the harbour, with the shore guns awake.', goal: 'ship', count: 3, ships: 3, guns: true, start: 'takeoff', firstWave: 60, waveEvery: 60, wave: 2 },
+    { name: 'Last Light', sunStart: 19.1, brief: 'Eight targets before dark, with everything they have. Coming home under fire.', goal: 'ground', count: 8, ships: 0, guns: true, start: 'return', firstWave: 30, waveEvery: 45, wave: 3 },
   ];
 
   // The spec for mission number n (from 1). After the list, it starts again, a little harder.

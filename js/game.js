@@ -2,7 +2,7 @@
 // Shared numbers for the whole game. Change a number here, rebuild, reload.
 var PA;
 (function (PA) {
-    PA.VERSION = '0.24 (2026-11-25: the sun moves and casts shadows, a cloud deck with shadows, dusk and night)';
+    PA.VERSION = '0.25 (2026-11-25: real-time sun from each mission\'s own start, imagined weather, objects take the sun\'s colour, questions in ⚙️)';
     // Internal resolution. The canvas is small on purpose: every pixel is a
     // "pixel-art pixel", and the page scales it up with no smoothing.
     // Layout and drawing use these 480×270 units. The canvas is RES times as many pixels on each
@@ -326,19 +326,19 @@ var PA;
     }
     PA.isOrderedGoal = isOrderedGoal;
     PA.MISSIONS = [
-        { name: 'Dots', brief: 'Fly roughly over each dot, in order, up to fifty. The next one is lit on the radar. End mission moves on.', goal: 'dots', count: 50, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
-        { name: 'Rings', brief: 'Fly through each ring, in order. Nothing shoots at you on this one.', goal: 'rings', count: 8, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
-        { name: 'Circuit', brief: 'Two laps of the circuit against two friends and two allied planes. Hold your speed.', goal: 'race', count: 2, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
-        { name: 'Range Day', brief: 'Practice on the range. Three ground targets, no fighters, no guns.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
-        { name: 'First Contact', brief: 'One fighter now and then. Hold the nose on a target until it locks.', goal: 'ground', count: 4, ships: 0, guns: false, start: 'takeoff', firstWave: 90, waveEvery: 90, wave: 2 },
-        { name: 'Coast Watch', brief: 'Two ships off the coast, with flak on the shore.', goal: 'ship', count: 2, ships: 2, guns: true, start: 'takeoff', firstWave: 100, waveEvery: 80, wave: 2 },
-        { name: 'Armour Strike', brief: 'Tanks on the move. Six of them, with a fighter now and then.', goal: 'ground', count: 6, ships: 0, guns: true, start: 'takeoff', firstWave: 120, waveEvery: 100, wave: 2 },
-        { name: 'Intercept', brief: 'Enemy fighters are coming in. Shoot down three.', goal: 'air', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 30, waveEvery: 45, wave: 3 },
-        { name: 'Heading Home', brief: 'Flying home with a fighter on your tail. Break it off, then finish the job.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'return', firstWave: 40, waveEvery: 60, wave: 1 },
-        { name: 'Town Watch', brief: 'The town has SAM sites. Five targets, and stay out of the missiles.', goal: 'ground', count: 5, ships: 0, guns: true, start: 'takeoff', firstWave: 120, waveEvery: 90, wave: 2 },
-        { name: 'Air Superiority', brief: 'Five fighters over the sea lane. Guns and missiles both help.', goal: 'air', count: 5, ships: 0, guns: true, start: 'takeoff', firstWave: 30, waveEvery: 40, wave: 3 },
-        { name: 'Port Strike', brief: 'Three ships in the harbour, with the shore guns awake.', goal: 'ship', count: 3, ships: 3, guns: true, start: 'takeoff', firstWave: 60, waveEvery: 60, wave: 2 },
-        { name: 'Last Light', brief: 'Eight targets before dark, with everything they have. Coming home under fire.', goal: 'ground', count: 8, ships: 0, guns: true, start: 'return', firstWave: 30, waveEvery: 45, wave: 3 },
+        { name: 'Dots', sunStart: 6.6, brief: 'Fly roughly over each dot, in order, up to fifty. The next one is lit on the radar. End mission moves on.', goal: 'dots', count: 50, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+        { name: 'Rings', sunStart: 9.5, brief: 'Fly through each ring, in order. Nothing shoots at you on this one.', goal: 'rings', count: 8, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+        { name: 'Circuit', sunStart: 13.5, brief: 'Two laps of the circuit against two friends and two allied planes. Hold your speed.', goal: 'race', count: 2, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+        { name: 'Range Day', sunStart: 15.2, brief: 'Practice on the range. Three ground targets, no fighters, no guns.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+        { name: 'First Contact', sunStart: 16.8, brief: 'One fighter now and then. Hold the nose on a target until it locks.', goal: 'ground', count: 4, ships: 0, guns: false, start: 'takeoff', firstWave: 90, waveEvery: 90, wave: 2 },
+        { name: 'Coast Watch', sunStart: 17.9, brief: 'Two ships off the coast, with flak on the shore.', goal: 'ship', count: 2, ships: 2, guns: true, start: 'takeoff', firstWave: 100, waveEvery: 80, wave: 2 },
+        { name: 'Armour Strike', sunStart: 18.6, brief: 'Tanks on the move. Six of them, with a fighter now and then.', goal: 'ground', count: 6, ships: 0, guns: true, start: 'takeoff', firstWave: 120, waveEvery: 100, wave: 2 },
+        { name: 'Intercept', sunStart: 19.4, brief: 'Enemy fighters are coming in. Shoot down three.', goal: 'air', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 30, waveEvery: 45, wave: 3 },
+        { name: 'Heading Home', sunStart: 20.3, brief: 'Flying home with a fighter on your tail. Break it off, then finish the job.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'return', firstWave: 40, waveEvery: 60, wave: 1 },
+        { name: 'Town Watch', sunStart: 7.9, brief: 'The town has SAM sites. Five targets, and stay out of the missiles.', goal: 'ground', count: 5, ships: 0, guns: true, start: 'takeoff', firstWave: 120, waveEvery: 90, wave: 2 },
+        { name: 'Air Superiority', sunStart: 11.0, brief: 'Five fighters over the sea lane. Guns and missiles both help.', goal: 'air', count: 5, ships: 0, guns: true, start: 'takeoff', firstWave: 30, waveEvery: 40, wave: 3 },
+        { name: 'Port Strike', sunStart: 14.2, brief: 'Three ships in the harbour, with the shore guns awake.', goal: 'ship', count: 3, ships: 3, guns: true, start: 'takeoff', firstWave: 60, waveEvery: 60, wave: 2 },
+        { name: 'Last Light', sunStart: 19.1, brief: 'Eight targets before dark, with everything they have. Coming home under fire.', goal: 'ground', count: 8, ships: 0, guns: true, start: 'return', firstWave: 30, waveEvery: 45, wave: 3 },
     ];
     // The spec for mission number n (from 1). After the list, it starts again, a little harder.
     function missionFor(n) {
@@ -506,10 +506,6 @@ var PA;
         return { hours, el: p.el, az: p.az, sun, sunCol, direct, zenith: pal.zenith, horizon: pal.horizon, ambient };
     }
     PA.lightAt = lightAt;
-    // How fast the solar clock runs, in hours per second of flight: still, slow (an hour in three
-    // minutes, so the sun is seen to move in a mission), fast (an hour a minute).
-    PA.SUN_RATES = [0, 1 / 180, 1 / 60];
-    PA.SUN_NAMES = ['Still', 'Slow', 'Fast'];
     // The solar clock: hours from midnight, wrapped to 0-24.
     function wrapHours(h) {
         return ((h % 24) + 24) % 24;
@@ -518,17 +514,46 @@ var PA;
     // ---- Clouds: one deck of cumulus at a height ------------------------------------------
     PA.CLOUD_BASE = 520; // metres: the flat base of the deck
     PA.CLOUD_SCALE = 300; // metres: the size of one cloud cell in the noise
-    PA.CLOUD_COVER = 0.42; // about 40% of the sky is cloud
-    const CLOUD_THRESHOLD = 0.52; // the noise level above which there is cloud
+    PA.CLOUD_COVER = 0.42; // the default: about 40% of the sky is cloud
+    PA.WEATHER = {
+        clear: { name: 'Clear', cover: 0.12, wind: 1, storm: 0, rain: false, thunder: false, dust: false, weight: 3 },
+        scattered: { name: 'Scattered cloud', cover: 0.42, wind: 1, storm: 0, rain: false, thunder: false, dust: false, weight: 3 },
+        overcast: { name: 'Overcast', cover: 0.85, wind: 1, storm: 0.25, rain: false, thunder: false, dust: false, weight: 1 },
+        rain: { name: 'Rain', cover: 0.9, wind: 1.5, storm: 0.6, rain: true, thunder: false, dust: false, weight: 1 },
+        thunder: { name: 'Thunderstorm', cover: 0.97, wind: 2.5, storm: 0.9, rain: true, thunder: true, dust: false, weight: 0.5 },
+        windy: { name: 'Windy', cover: 0.5, wind: 3, storm: 0, rain: false, thunder: false, dust: false, weight: 1 },
+        dust: { name: 'Dust storm', cover: 0.2, wind: 2, storm: 0.4, rain: false, thunder: false, dust: true, weight: 0.5 },
+    };
+    // The weather for a flight, from its seed: different in each mission, and mostly fair.
+    function weatherFor(seed) {
+        const keys = Object.keys(PA.WEATHER);
+        const total = keys.reduce((s, k) => s + PA.WEATHER[k].weight, 0);
+        let r = (((seed * 2654435761) >>> 0) % 100000) / 100000 * total;
+        for (const k of keys) {
+            r -= PA.WEATHER[k].weight;
+            if (r < 0)
+                return k;
+        }
+        return 'clear';
+    }
+    PA.weatherFor = weatherFor;
     // The cloud density at ground position (X, Z) at time t (seconds): 0 is clear, 1 is cloud.
-    // Three octaves of value noise, drifting with the wind. The ramp is soft, so the edges are soft.
-    function cloudDensity(X, Z, t) {
-        const u = (X - PA.WIND.X * t) / PA.CLOUD_SCALE, v = (Z - PA.WIND.Z * t) / PA.CLOUD_SCALE;
+    // Three octaves of value noise, drifting with the wind. The threshold moves with the cover, so
+    // more cover means more of the noise is cloud. The ramp is soft, so the edges are soft.
+    function cloudDensity(X, Z, t, cover = PA.CLOUD_COVER, windScale = 1) {
+        const u = (X - PA.WIND.X * windScale * t) / PA.CLOUD_SCALE, v = (Z - PA.WIND.Z * windScale * t) / PA.CLOUD_SCALE;
         const f = PA.noise2(u, v) * 0.55 + PA.noise2(u * 2.1 + 5.2, v * 2.1 + 1.3) * 0.3 + PA.noise2(u * 4.3 + 9.1, v * 4.3 + 7.7) * 0.15;
-        const x = (f - CLOUD_THRESHOLD) * 6;
+        const th = 0.52 - (cover - PA.CLOUD_COVER) * 0.45;
+        const x = (f - th) * 6;
         return x <= 0 ? 0 : x >= 1 ? 1 : x;
     }
     PA.cloudDensity = cloudDensity;
+    // The object tint: how much of the sun's colour and the sky's light reaches things on the ground,
+    // per channel (0 to 1). Full day is 1 everywhere, dusk takes on the sun's warmth, night is dim.
+    function lightTint(L) {
+        return [0, 1, 2].map(k => Math.max(0, Math.min(1, L.ambient[k] * 0.8 + (L.sunCol[k] / 255) * 0.5 * L.direct)));
+    }
+    PA.lightTint = lightTint;
     // Where the sun's ray from ground point (X, Z) meets the deck, and how much cloud is on it.
     // Returns the cloud density at that point: the shadow on the ground is 1 minus this, times a share.
     function cloudShadow(X, Z, t, sun, el) {
@@ -2178,7 +2203,11 @@ var PA;
             this.held = { fire: false, boost: false, missile: false };
             this.axes = { yaw: 0, pitch: 0 };
             this.throttleSet = CRUISE_THROTTLE; // the throttle lever, used when the flight helper is off
-            this.clock = PA.START_HOUR; // the solar clock, hours from midnight (kept across missions)
+            this.clock = PA.START_HOUR; // the solar clock, hours from midnight: each mission starts at its own time
+            this.weather = 'clear'; // this flight's weather (light.ts WEATHER)
+            this.flashT = 0; // seconds of lightning flash left
+            this.thunderIn = 8; // seconds until the next strike
+            this.boomIn = 0; // seconds until its thunder is heard
             this.pads = { lx: 0, ly: 0, rx: 0, ry: 0 }; // drone flight: the two sticks
             this.race = null;
             this.rivals = [];
@@ -2195,6 +2224,8 @@ var PA;
             const ammo = this.ammo, missiles = this.missileStock, chaff = this.chaff;
             this.seed = seed;
             this.missionSpec = PA.missionFor(this.missionNumber);
+            this.clock = this.missionSpec.sunStart;
+            this.weather = PA.weatherFor(seed);
             this.mission = PA.makeMission(this.settings.mode, seed, this.missionSpec);
             this.rand = PA.random(seed + 7);
             this.plane = this.settings.mode === 'drone' ? new PA.Drone(this.settings.droneKind || 'camera') : new PA.Aircraft(this.settings.mode === 'jet');
@@ -2296,11 +2327,11 @@ var PA;
             return PA.lightAt(this.clock);
         }
         update(dtIn) {
-            var _a;
             if (this.paused)
                 return;
             const dt = Math.min(dtIn, 1 / 30);
-            this.clock = PA.wrapHours(this.clock + dt * ((_a = PA.SUN_RATES[this.settings.sunClock]) !== null && _a !== void 0 ? _a : 0));
+            this.clock = PA.wrapHours(this.clock + dt / 3600); // real time: an hour is an hour
+            this.updateWeather(dt);
             this.updatePuffs(dt);
             this.burnWrecks(dt);
             this.updateMarks(dt);
@@ -2612,6 +2643,23 @@ var PA;
         isTraining() {
             const goal = this.missionSpec.goal;
             return PA.isOrderedGoal(goal) || goal === 'race';
+        }
+        // Lightning now and then in a thunderstorm: a flash at once, the thunder a second or two later.
+        updateWeather(dt) {
+            this.flashT = Math.max(0, this.flashT - dt);
+            if (this.boomIn > 0) {
+                this.boomIn -= dt;
+                if (this.boomIn <= 0)
+                    this.onSound('boom');
+            }
+            if (!PA.WEATHER[this.weather].thunder)
+                return;
+            this.thunderIn -= dt;
+            if (this.thunderIn <= 0) {
+                this.flashT = 0.6;
+                this.boomIn = 1 + this.rand() * 1.5;
+                this.thunderIn = 6 + this.rand() * 10;
+            }
         }
         // Finishing a mission (or the End mission button): the next one starts, fully restocked.
         endMission() {
@@ -3408,6 +3456,14 @@ var PA;
         }
         // An explosion: a fireball that flares and fades, smoke that rolls up and spreads, and sparks.
         explode(X, h, Z, n) {
+            // In wind or a dust storm the blast throws up dust, which the wind carries off.
+            if (PA.WEATHER[this.weather].dust || this.weather === 'windy') {
+                for (let i = 0; i < 4; i++) {
+                    const a = this.rand() * Math.PI * 2, sp = 2 + this.rand() * 4;
+                    this.puffs.push({ X, h, Z, vX: Math.cos(a) * sp + PA.WIND.X, vY: 1 + this.rand() * 3, vZ: Math.sin(a) * sp + PA.WIND.Z,
+                        life: 1.2 + this.rand() * 0.8, max: 2, color: '#d8c49a', size: 4 + this.rand() * 4, kind: 'dust' });
+                }
+            }
             const fire = Math.max(3, Math.round(n * 0.5)), smoke = Math.max(3, Math.round(n * 0.45)), sparks = Math.round(n * 0.4);
             for (let i = 0; i < fire; i++) {
                 const a = this.rand() * Math.PI * 2, sp = 3 + this.rand() * 10;
@@ -3546,8 +3602,58 @@ var PA;
     let L = PA.lightAt(PA.START_HOUR);
     let SHADOW_X = 0, SHADOW_Z = 0;
     let shadowsOn = true;
+    let tintTint = [1, 1, 1];
+    let WX = PA.WEATHER.clear; // this flight's weather
+    let tintKey = '';
+    let tintSet = {};
+    const tintSets = new Map();
+    // The model as the light makes it: slices multiplied by the tint, cached per light key.
+    function litModel(name) {
+        const hit = tintSet[name];
+        if (hit)
+            return hit;
+        const base = PA.model(name);
+        const full = tintTint.every(v => v >= 0.97);
+        const m = full ? base : { ...base, slices: base.slices.map(cv => (cv ? tintCanvas(cv, tintTint) : null)) };
+        tintSet[name] = m;
+        return m;
+    }
+    function tintCanvas(src, tint) {
+        const cv = document.createElement('canvas');
+        cv.width = src.width;
+        cv.height = src.height;
+        const x = cv.getContext('2d');
+        if (!x)
+            return src;
+        x.drawImage(src, 0, 0);
+        x.globalCompositeOperation = 'multiply';
+        x.fillStyle = 'rgb(' + Math.round(tint[0] * 255) + ',' + Math.round(tint[1] * 255) + ',' + Math.round(tint[2] * 255) + ')';
+        x.fillRect(0, 0, cv.width, cv.height);
+        x.globalCompositeOperation = 'destination-in'; // keep the model's own outline and transparency
+        x.drawImage(src, 0, 0);
+        return cv;
+    }
     function setLight(g) {
-        L = g.light;
+        var _a;
+        const base = g.light;
+        WX = PA.WEATHER[g.weather];
+        // Weather: a storm dims the sun and the sky light, and dust turns the haze brown.
+        const storm = WX.storm, dust = WX.dust ? 0.75 : 0;
+        const horizon = base.horizon.map((v, k) => v + ([205, 170, 120][k] - v) * dust);
+        L = { ...base, direct: base.direct * (1 - 0.4 * storm), horizon, ambient: base.ambient.map(v => v * (1 - 0.35 * storm)) };
+        // Objects take the light's tint (quantised, so the cache is reused as the sun moves).
+        const tint = PA.lightTint(L);
+        const key = tint.map(v => Math.round(v * 12)).join(',');
+        if (key !== tintKey) {
+            tintKey = key;
+            tintSet = (_a = tintSets.get(key)) !== null && _a !== void 0 ? _a : {};
+            if (!tintSets.has(key)) {
+                if (tintSets.size >= 6)
+                    tintSets.delete(tintSets.keys().next().value);
+                tintSets.set(key, tintSet);
+            }
+            tintTint = tint;
+        }
         const el = Math.max(3, L.el) * Math.PI / 180;
         const hz = Math.hypot(L.sun[0], L.sun[2]) || 1;
         const stretch = 1 / Math.tan(el);
@@ -4157,20 +4263,23 @@ var PA;
     // The deck's density (light.ts, from Generate Clouds' noise) is sampled on a grid of 30 m cells
     // round the camera, once every few frames. A sky ray that meets the deck, and a ground point whose
     // sun ray does, read the grid: a few lookups per pixel, not a noise field.
-    const CG_CELL = 30; // metres per grid cell
+    const CG_CELL = 60; // metres per grid cell
     const CG_N = 200; // cells a side: a 6 km window round the camera
     const cloudGrid = new Float32Array(CG_N * CG_N);
     let cgX0 = 0, cgZ0 = 0, cgT = -1e9;
+    let cgCover = -1, cgWind = -1;
     function updateClouds(t, camX, camZ) {
         const half = (CG_N * CG_CELL) / 2;
         const recentre = Math.abs(camX - cgX0 - half) > 600 || Math.abs(camZ - cgZ0 - half) > 600;
-        if (!recentre && Math.abs(t - cgT) < 0.4)
+        if (!recentre && Math.abs(t - cgT) < 0.4 && cgCover === WX.cover && cgWind === WX.wind)
             return;
+        cgCover = WX.cover;
+        cgWind = WX.wind;
         cgX0 = Math.round((camX - half) / CG_CELL) * CG_CELL;
         cgZ0 = Math.round((camZ - half) / CG_CELL) * CG_CELL;
         for (let j = 0; j < CG_N; j++) {
             for (let i = 0; i < CG_N; i++) {
-                cloudGrid[j * CG_N + i] = PA.cloudDensity(cgX0 + i * CG_CELL, cgZ0 + j * CG_CELL, t);
+                cloudGrid[j * CG_N + i] = PA.cloudDensity(cgX0 + i * CG_CELL, cgZ0 + j * CG_CELL, t, WX.cover, WX.wind);
             }
         }
         cgT = t;
@@ -4183,7 +4292,9 @@ var PA;
         const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
         const k = j * CG_N + i;
         const a = cloudGrid[k], b = cloudGrid[k + 1], c = cloudGrid[k + CG_N], d = cloudGrid[k + CG_N + 1];
-        return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+        // Fade to nothing over the last 900 m of the window, so its edge never shows as a line.
+        const edge = smooth01(Math.min(fx, CG_N - 1 - fx, fz, CG_N - 1 - fz) * CG_CELL / 900);
+        return (a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v) * edge;
     }
     // The share of the sun's light a cloud takes from ground point (X, Z): the deck on the sun's ray.
     function cloudShadowAt(X, Z) {
@@ -4212,7 +4323,7 @@ var PA;
         if (op <= 0.01)
             return null;
         // The shaded side takes the sky's ambient colour; the lit side the sun's colour, lifted toward white.
-        const shade = [0, 1, 2].map(k => L.ambient[k] * 255 * 0.9);
+        const shade = [0, 1, 2].map(k => L.ambient[k] * 255 * 0.9 * (1 - 0.3 * WX.storm));
         const lit = [0, 1, 2].map(k => (L.sunCol[k] + 255) / 2);
         return [
             shade[0] + (lit[0] - shade[0]) * sunlit, shade[1] + (lit[1] - shade[1]) * sunlit, shade[2] + (lit[2] - shade[2]) * sunlit, op
@@ -4359,7 +4470,7 @@ var PA;
         const time = g.time;
         const p = g.plane;
         for (const th of things) {
-            const m = PA.model(th.name);
+            const m = litModel(th.name);
             const ship = th.name === 'ship';
             const base = ship ? th.base + Math.sin(time * 0.9 + th.phase) * 0.25 : th.base;
             const pose = poseOf(c, m, th.X, base, th.Z, th.yaw);
@@ -4374,7 +4485,7 @@ var PA;
             if (th.air && th.t)
                 pose.roll += bankOf(th.t, pose.yaw);
             if (th.name.startsWith('tree'))
-                PA.drawModelCached(ctx, m, th.name, { ...pose, yaw: th.yaw }); // a tree looks the same from every side
+                PA.drawModelCached(ctx, m, th.name + tintKey, { ...pose, yaw: th.yaw }); // a tree looks the same from every side
             else
                 PA.drawModel(ctx, m, pose);
             if (pose.px < 0.5)
@@ -4382,7 +4493,7 @@ var PA;
             if (th.name === 'tank_mbt' || th.name === 'tank_light') {
                 // The turret turns to track the plane when it is near.
                 const mbt = th.name === 'tank_mbt';
-                const tm = PA.model(mbt ? 'turret_mbt' : 'turret_light');
+                const tm = litModel(mbt ? 'turret_mbt' : 'turret_light');
                 const [tx, ty] = PA.modelToScreen(m, pose, mbt ? 7 : 6, mbt ? 14 : 11, mbt ? 4 : 3);
                 const near = Math.hypot(p.X - th.X, p.Z - th.Z) < 900;
                 const aim = near ? Math.atan2(p.X - th.X, p.Z - th.Z) : th.yaw;
@@ -4391,7 +4502,7 @@ var PA;
             else if (th.name === 'sam') {
                 // The radar dish spins on its mast.
                 const [dx, dy] = PA.modelToScreen(m, pose, 11.5, 4, 9);
-                PA.drawModel(ctx, PA.model('samdish'), { ...pose, sx: dx, sy: dy, yaw: time * 2.2 + th.phase - c.yaw });
+                PA.drawModel(ctx, litModel('samdish'), { ...pose, sx: dx, sy: dy, yaw: time * 2.2 + th.phase - c.yaw });
             }
             else if (th.name === 'farm' || th.name === 'house1' || th.name === 'house2') {
                 const [hx, hy] = PA.modelToScreen(m, pose, 12, 5, 13);
@@ -4738,7 +4849,7 @@ var PA;
     function droneSelf(ctx, g, c) {
         const d = g.drone;
         const name = 'drone_' + d.kind;
-        const m = PA.model(name);
+        const m = litModel(name);
         drawShadow(ctx, c, name, d.X, d.h, d.Z, d.yaw);
         const top = g.settings.view === 'top';
         const pose = {
@@ -4847,7 +4958,7 @@ var PA;
         const p = g.plane;
         const glider = g.settings.mode === 'glider';
         const name = glider ? 'glider' : 'plane';
-        const m = PA.model(name);
+        const m = litModel(name);
         const v = VIEWS[g.settings.view];
         // Its shadow, the shape of the plane, on the ground.
         drawShadow(ctx, c, name, p.X, p.h, p.Z, p.yaw);
@@ -5115,10 +5226,36 @@ var PA;
     function dazzleVeil(ctx, g) {
         if (g.dazzle <= 0)
             return;
+        ctx.setTransform(PA.RES, 0, 0, PA.RES, 0, 0);
         ctx.globalAlpha = Math.min(0.85, g.dazzle);
         ctx.fillStyle = '#d8d2c6';
         ctx.fillRect(0, 0, PA.W, PA.H);
         ctx.globalAlpha = 1;
+    }
+    // Weather over the picture: rain streaks and a grey veil, a tan veil for dust, a white flash.
+    function weatherOverlay(ctx, g) {
+        ctx.setTransform(PA.RES, 0, 0, PA.RES, 0, 0); // the veils cover the whole layout, whatever came before
+        if (WX.rain) {
+            ctx.fillStyle = 'rgba(60,72,96,' + (0.1 + 0.12 * WX.storm).toFixed(3) + ')';
+            ctx.fillRect(0, 0, PA.W, PA.H);
+            ctx.strokeStyle = 'rgba(214,226,242,0.6)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let k = 0; k < 110; k++) {
+                const x = Math.random() * PA.W, y = Math.random() * PA.H;
+                ctx.moveTo(x, y);
+                ctx.lineTo(x - 3, y + 9);
+            }
+            ctx.stroke();
+        }
+        if (WX.dust) {
+            ctx.fillStyle = "rgba(214,180,128,0.32)";
+            ctx.fillRect(0, 0, PA.W, PA.H);
+        }
+        if (g.flashT > 0) {
+            ctx.fillStyle = 'rgba(255,255,250,' + Math.min(0.9, g.flashT * 1.5).toFixed(3) + ')';
+            ctx.fillRect(0, 0, PA.W, PA.H);
+        }
     }
     function render(ctx, g) {
         const t0 = performance.now();
@@ -5161,6 +5298,7 @@ var PA;
         if (g.settings.forces)
             forces(ctx, g);
         dazzleVeil(ctx, g);
+        weatherOverlay(ctx, g);
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.drawImage(textures().vignette, 0, 0);
         const t3 = performance.now();
@@ -5341,7 +5479,7 @@ var PA;
         mode: 'glider', control: 'drag', view: 'chase', difficulty: 'felix', sound: 1,
         volMusic: 20, volGun: 25, volTurn: 25, volWarn: 60,
         forces: 0, flightHelp: 1, safeFlight: 1, invincible: 0, autoReload: 1,
-        enemyWave: 1, allies: 1, showErrors: 0, sunClock: 1, droneKind: 'camera', stickMode: 'mode2',
+        enemyWave: 1, allies: 1, showErrors: 0, droneKind: 'camera', stickMode: 'mode2',
     };
     const VIEW_ORDER = ['chase', 'top', 'cockpit'];
     const TUTORIAL_KEY = 'pa_warthog.tutorialSeen';
@@ -5905,7 +6043,7 @@ var PA;
     // The solar clock in the readout: the time, and what the sun is doing.
     function clockText(hours, el) {
         const h = Math.floor(hours), m = Math.floor((hours - h) * 60);
-        const word = el > 10 ? 'high sun' : el > 0 ? 'low sun, long shadows' : el > -6 ? 'dusk' : 'night';
+        const word = el > 10 ? 'high sun' : el > 0 ? 'low sun, long shadows' : el > -12 ? 'dusk' : 'night';
         return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ' · ' + word;
     }
     function message() {

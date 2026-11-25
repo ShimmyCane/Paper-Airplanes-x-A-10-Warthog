@@ -794,19 +794,29 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   }
   check('clouds: the deck drifts with the wind', drifts);
   check('clock: hours wrap past midnight', PA.wrapHours(25) === 1 && PA.wrapHours(-1) === 23);
-  const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 1, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0, sunClock: 1 };
+  // Each mission starts at its own time of day, and the clock runs in real time from there.
+  const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 1, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0 };
   const g = new PA.Game(st);
   g.onSound = () => {};
+  g.missionNumber = 1; g.newFlight(5);
+  check('clock: the first mission starts at dawn', g.clock === PA.MISSIONS[0].sunStart && g.clock > 5 && g.clock < 8, 'clock ' + g.clock.toFixed(2));
   const c0 = g.clock;
   for (let i = 0; i < 30 * 60; i++) g.update(1 / 30);
-  check('clock: slow runs an hour in three minutes', Math.abs((g.clock - c0) - 1 / 3) < 0.01, 'moved ' + (g.clock - c0).toFixed(3) + ' h');
-  g.settings.sunClock = 0;
-  const c1 = g.clock;
-  for (let i = 0; i < 30 * 60; i++) g.update(1 / 30);
-  check('clock: still does not move', g.clock === c1);
-  g.settings.sunClock = 2;
-  for (let i = 0; i < 30 * 60; i++) g.update(1 / 30);
-  check('clock: fast runs an hour a minute', Math.abs((g.clock - c1) - 1) < 0.01, 'moved ' + (g.clock - c1).toFixed(3) + ' h');
+  check('clock: real time, a minute of flight is a minute of sun', Math.abs((g.clock - c0) - 1 / 60) < 0.001, 'moved ' + ((g.clock - c0) * 60).toFixed(3) + ' min');
+  const starts = PA.MISSIONS.map(m => m.sunStart);
+  check('clock: the missions start at different times, all in the day', new Set(starts).size === starts.length && starts.every(h => h >= 0 && h < 24));
+  check('weather: each flight gets one, and they vary between missions', ['clear', 'scattered', 'overcast', 'rain', 'thunder', 'windy', 'dust'].includes(g.weather) && new Set(Array.from({ length: 200 }, (_, k) => PA.weatherFor(k + 1))).size >= 5);
+  const coverOf = w => { let n = 0, m = 0; for (let x = 0; x < 3000; x += 37) for (let z = 0; z < 3000; z += 37) { m++; if (PA.cloudDensity(x, z, 0, PA.WEATHER[w].cover, PA.WEATHER[w].wind) > 0) n++; } return n / m; };
+  check('weather: a thunderstorm is cloudier than a clear day', coverOf('thunder') > coverOf('clear') + 0.6, 'clear ' + coverOf('clear').toFixed(2) + ', thunder ' + coverOf('thunder').toFixed(2));
+  check('weather: a thunderstorm flashes and rumbles now and then', (() => {
+    g.weather = 'thunder'; g.flashT = 0; let flashes = 0;
+    for (let i = 0; i < 30 * 60 * 2; i++) { g.update(1 / 30); if (g.flashT > 0.5) flashes++; }
+    g.weather = 'clear'; return flashes > 0;
+  })());
+  check('tint: full day is untinted, night is dim', (() => {
+    const day = PA.lightTint(PA.lightAt(12)), night = PA.lightTint(PA.lightAt(23));
+    return day.every(v => v >= 0.97) && night.every(v => v < 0.3);
+  })());
 }
 
 console.log(failures === 0 ? '\nAll flight checks passed.' : '\n' + failures + ' check(s) failed.');

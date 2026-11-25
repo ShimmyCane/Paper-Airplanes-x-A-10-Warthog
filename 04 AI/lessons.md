@@ -93,3 +93,14 @@
 - **Check the astronomy against known values before trusting it.** Noon at 51° N in early October must be about 36° high and due south, and the sun must set in the late afternoon. The first sunset note said 18:10; the formula gave 17:33. Fix the note to the number the code gives.
 - **A corner readout collides with the HUD.** The time line sat over the ammo and missile pills at the top. Put a new readout in a free corner (top right) and check it at 390 px.
 - **Borrow from a sister project's history, not from another repo.** The Generate Clouds code was read from the Index repo's history, which the nursery keeps. Say where a borrowed idea came from in the research README, and cut it back to the page's resolution (the full volumetric march is not kept).
+
+## 2026-11-25 (round 18, real-time sun, weather, object light)
+
+- **A stretched fill covers only what the transform says.** The rain veil covered only the top-left quarter: an earlier step had left the drawing transform at 1×, so `fillRect(0,0,W,H)` filled 480×270 device pixels. The seam sat at the screen centre. Set the transform inside each overlay function, do not inherit it.
+- **Find the cause by removing one thing at a time.** Clear weather had no seam; rain did. Switching off the ground shadow did not help; switching off the overlay did. Three one-shot renders found it in a few minutes.
+- **A coarse cloud grid shows its own cell edges and window edges.** The window edge is faded over the last 900 m, so no line shows at its border.
+- **Tint by caching a copy, not by painting over the picture.** Each model's slices are multiplied by the light's tint and kept per light level (quantised to a twelfth, up to six sets). Painting a veil over objects would also tint the sky behind them.
+- **Keep the transparent outline when tinting.** Multiply fills the whole canvas and makes the transparent pixels opaque; a `destination-in` pass with the original brings the outline back.
+- **Real time means a mission starts at its own hour.** A 1-minute-per-minute clock with per-mission start times gives dawn, afternoon and dusk missions without any setting. The first version had a sun-speed setting; Jimmy's answer ("nothing static") removed it.
+- **Weather is per flight, from the seed.** The cover threshold is the one knob that gives clear, scattered, overcast and rain from the same noise; calibrate the threshold against the cover share with a sweep, not by eye.
+- **Put the open questions beside the feedback box.** A "Questions" group in ⚙️ keeps the answers tied to the screen they are about.
