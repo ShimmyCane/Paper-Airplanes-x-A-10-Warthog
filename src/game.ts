@@ -26,6 +26,7 @@ namespace PA {
     autoReload: number;   // 1 = missiles come back over time
     enemyWave: number;    // enemy fighter density: 0 none, 1 half, 2 full (0-6 on the slider)
     allies: number;       // allied fighters that fly around (0-4)
+    sunClock: number;     // 0 still, 1 slow, 2 fast: how fast the solar clock runs (see light.ts)
     droneKind?: DroneKind;   // drone flight: which drone
     stickMode?: StickMode;   // drone flight: which transmitter layout (Mode 2, 1 or 3)
     showErrors: number;
@@ -264,6 +265,7 @@ namespace PA {
     held: Held = { fire: false, boost: false, missile: false };
     axes: Axes = { yaw: 0, pitch: 0 };
     throttleSet = CRUISE_THROTTLE;   // the throttle lever, used when the flight helper is off
+    clock = START_HOUR;              // the solar clock, hours from midnight (kept across missions)
     pads: Pads = { lx: 0, ly: 0, rx: 0, ry: 0 };   // drone flight: the two sticks
     race: Race | null = null;
     rivals: Rival[] = [];
@@ -375,9 +377,14 @@ namespace PA {
       this.onSound('chaff');
     }
 
+    get light(): Light {
+      return lightAt(this.clock);
+    }
+
     update(dtIn: number): void {
       if (this.paused) return;
       const dt = Math.min(dtIn, 1 / 30);
+      this.clock = wrapHours(this.clock + dt * (SUN_RATES[this.settings.sunClock] ?? 0));
       this.updatePuffs(dt);
       this.burnWrecks(dt);
       this.updateMarks(dt);

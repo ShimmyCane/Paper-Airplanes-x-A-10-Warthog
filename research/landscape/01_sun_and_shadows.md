@@ -20,8 +20,8 @@ The Generate Clouds project uses exactly these steps in `js/sun.js` (`GC.Sun.pos
 ## How the sun moves
 
 - It turns 15° of longitude per hour, so about 15° of azimuth per hour near the equator and less in the north at other times of year.
-- Near the horizon it moves fastest in azimuth at a given rate and, at mid-latitudes in autumn, sets about 18:10 UT on 1 October at 51° N (solar time, longitude 0).
-- In a flight of two minutes the sun should be seen to move. At "Slow" (one game hour per three real minutes) the sun drops about 5° a minute; at "Fast" (one hour a minute) about 15°. Both are shown in the readout.
+- Near the horizon it moves fastest in azimuth at a given rate. On 1 October at 51° N (longitude 0, solar time, no refraction) the sun rises about 06:05 UT and sets about 17:33 UT; the game's clock starts at 14:30, so sunset comes about three hours in.
+- In a flight of two minutes the sun should be seen to move. In the afternoon, at "Slow" (one game hour per three real minutes) the sun's height falls about 3° a minute and its bearing turns about 4°; at "Fast" (one hour a minute) about 9° and 13°. The readout shows the time.
 
 ## Shadows
 

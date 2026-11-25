@@ -6,7 +6,7 @@ namespace PA {
     mode: 'glider', control: 'drag', view: 'chase', difficulty: 'felix', sound: 1,
     volMusic: 20, volGun: 25, volTurn: 25, volWarn: 60,
     forces: 0, flightHelp: 1, safeFlight: 1, invincible: 0, autoReload: 1,
-    enemyWave: 1, allies: 1, showErrors: 0, droneKind: 'camera', stickMode: 'mode2',
+    enemyWave: 1, allies: 1, showErrors: 0, sunClock: 1, droneKind: 'camera', stickMode: 'mode2',
   };
   const VIEW_ORDER: View[] = ['chase', 'top', 'cockpit'];
   const TUTORIAL_KEY = 'pa_warthog.tutorialSeen';
@@ -531,6 +531,7 @@ namespace PA {
     $('gun').textContent = a.mode === 'air' ? 'air: straight'
       : a.mode === 'ground' ? (Math.abs(a.pitch) * 180 / Math.PI).toFixed(1) + '° down'
       : 'straight';
+    $('sunTime').textContent = clockText(g.clock, g.light.el);
     $('speed').textContent = g.settings.mode === 'drone' ? Math.round(p.speed * 3.6) + ' km/h' : Math.round(p.speed * 1.94) + ' kt';
     $('alt').textContent = Math.round(p.h - groundAt(p.X, p.Z)) + ' m';
     $('aoa').textContent = (p.alpha * 180 / Math.PI).toFixed(0) + '°';
@@ -551,6 +552,13 @@ namespace PA {
     }
     return 'Mission ' + g.missionNumber + ': ' + (goal === 'air' ? 'shoot down ' : 'destroy ') + left + ' more '
       + (goal === 'air' ? 'fighter' : goal === 'ship' ? 'ship' : 'ground target') + (left === 1 ? '' : 's');
+  }
+
+  // The solar clock in the readout: the time, and what the sun is doing.
+  function clockText(hours: number, el: number): string {
+    const h = Math.floor(hours), m = Math.floor((hours - h) * 60);
+    const word = el > 10 ? 'high sun' : el > 0 ? 'low sun, long shadows' : el > -6 ? 'dusk' : 'night';
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ' · ' + word;
   }
 
   function message(): string {

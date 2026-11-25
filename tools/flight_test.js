@@ -769,5 +769,45 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   check('shake: a missile shakes harder than a bullet', missile >= 0.99 && g.shake >= missile - 1e-9, 'missile ' + missile.toFixed(2) + ', after a bullet ' + g.shake.toFixed(2));
 }
 
+// 45. Light: the sun's place on the solar clock, the sky by its height, the cloud deck, and the clock.
+{
+  const L12 = PA.lightAt(12), L145 = PA.lightAt(14.5), L19 = PA.lightAt(19), L6 = PA.lightAt(6);
+  check('light: at noon the sun is high in the south', L12.el > 32 && L12.el < 40 && L12.az > 170 && L12.az < 195, 'el ' + L12.el.toFixed(1) + ', az ' + L12.az.toFixed(0));
+  check('light: mid-afternoon the sun is in the west and lower', L145.el > 20 && L145.el < 30 && L145.az > 210 && L145.az < 240, 'el ' + L145.el.toFixed(1) + ', az ' + L145.az.toFixed(0));
+  check('light: at 19h it is night (below -6 degrees)', L19.el < -6 && L19.direct === 0, 'el ' + L19.el.toFixed(1));
+  check('light: at 6h the sun is still below the horizon', L6.el < 0 && L6.direct === 0);
+  const len = Math.hypot(...L145.sun);
+  check('light: the sun vector is a unit vector pointing up when the sun is up', Math.abs(len - 1) < 1e-6 && L145.sun[1] > 0.3, 'length ' + len.toFixed(6));
+  check('light: the sun sets between 17 and 18 UT in early October at 51 N', (() => {
+    let h = 16; while (PA.lightAt(h).el > 0 && h < 19) h += 0.01; return h > 17 && h < 18;
+  })());
+  check('light: the sky is blue by day and dark at night', L12.zenith[2] > L12.zenith[0] && PA.lightAt(21).zenith[0] < 40);
+  check('light: the sun is warmer near the horizon than at noon', PA.lightAt(17.3).sunCol[2] < L12.sunCol[2]);
+  check('light: the ground is dark at night and bright at noon', PA.lightAt(21).ambient[1] < 0.3 && L12.ambient[1] > 0.6);
+  // The cloud deck: a fair share of the sky, and never outside 0..1.
+  let n = 0, m = 0, bad = 0;
+  for (let x = 0; x < 6000; x += 37) for (let z = 0; z < 6000; z += 37) { const d = PA.cloudDensity(x, z, 0); m++; if (d > 0) n++; if (d < 0 || d > 1) bad++; }
+  check('clouds: about 40% of the deck has cloud, and density stays in 0..1', bad === 0 && n / m > 0.3 && n / m < 0.5, 'share ' + (n / m).toFixed(2));
+  let drifts = false;
+  for (let x = 0; x < 3000 && !drifts; x += 50) for (let z = 0; z < 3000 && !drifts; z += 50) {
+    if (Math.abs(PA.cloudDensity(x, z, 0) - PA.cloudDensity(x, z, 30)) > 0.01) drifts = true;
+  }
+  check('clouds: the deck drifts with the wind', drifts);
+  check('clock: hours wrap past midnight', PA.wrapHours(25) === 1 && PA.wrapHours(-1) === 23);
+  const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 1, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0, sunClock: 1 };
+  const g = new PA.Game(st);
+  g.onSound = () => {};
+  const c0 = g.clock;
+  for (let i = 0; i < 30 * 60; i++) g.update(1 / 30);
+  check('clock: slow runs an hour in three minutes', Math.abs((g.clock - c0) - 1 / 3) < 0.01, 'moved ' + (g.clock - c0).toFixed(3) + ' h');
+  g.settings.sunClock = 0;
+  const c1 = g.clock;
+  for (let i = 0; i < 30 * 60; i++) g.update(1 / 30);
+  check('clock: still does not move', g.clock === c1);
+  g.settings.sunClock = 2;
+  for (let i = 0; i < 30 * 60; i++) g.update(1 / 30);
+  check('clock: fast runs an hour a minute', Math.abs((g.clock - c1) - 1) < 0.01, 'moved ' + (g.clock - c1).toFixed(3) + ' h');
+}
+
 console.log(failures === 0 ? '\nAll flight checks passed.' : '\n' + failures + ' check(s) failed.');
 process.exit(failures ? 1 : 0);

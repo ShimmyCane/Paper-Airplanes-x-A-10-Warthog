@@ -2,7 +2,7 @@
 // Shared numbers for the whole game. Change a number here, rebuild, reload.
 var PA;
 (function (PA) {
-    PA.VERSION = '0.23.1 (2026-11-25: training dots, rings and a circuit race; flak bursts; screen shake; hostile-only lock)';
+    PA.VERSION = '0.24 (2026-11-25: the sun moves and casts shadows, a cloud deck with shadows, dusk and night)';
     // Internal resolution. The canvas is small on purpose: every pixel is a
     // "pixel-art pixel", and the page scales it up with no smoothing.
     // Layout and drawing use these 480×270 units. The canvas is RES times as many pixels on each
@@ -429,6 +429,117 @@ var PA;
         });
     }
     PA.droneCourse = droneCourse;
+})(PA || (PA = {}));
+// Light: where the sun is, what colour the sun and the sky are, and where the cloud deck is.
+// Research in research/landscape/. The solar position is the Meeus / NOAA method, ported from
+// the Generate Clouds project (js/sun.js). The game's axes: X east, Y up, Z north (the start heading).
+var PA;
+(function (PA) {
+    PA.PLACE = { lat: 51, lon: 0 }; // a mid-latitude place, in solar time
+    PA.DAY_MS = Date.UTC(2026, 9, 1); // the day: 1 October, midnight UT
+    PA.START_HOUR = 14.5; // the clock starts mid-afternoon: the sun is low
+    // Where the sun is at a moment (ms since 1970, UT) for a place. Elevation above the horizon, and
+    // the compass bearing (0 north, 90 east).
+    function solarPos(ms, lat, lon) {
+        const rad = Math.PI / 180;
+        const d = ms / 86400000 + 2440587.5 - 2451545.0;
+        const g = rad * (357.529 + 0.98560028 * d);
+        const q = 280.459 + 0.98564736 * d;
+        const L = rad * (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g));
+        const e = rad * (23.439 - 0.00000036 * d);
+        const ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L));
+        const dec = Math.asin(Math.sin(e) * Math.sin(L));
+        const gmst = (18.697374558 + 24.06570982441908 * d) % 24;
+        const ha = rad * (gmst * 15 + lon) - ra;
+        const la = rad * lat;
+        const el = Math.asin(Math.sin(la) * Math.sin(dec) + Math.cos(la) * Math.cos(dec) * Math.cos(ha));
+        const az = Math.atan2(-Math.sin(ha), Math.tan(dec) * Math.cos(la) - Math.sin(la) * Math.cos(ha));
+        return { el: el / rad, az: ((az / rad) % 360 + 360) % 360 };
+    }
+    PA.solarPos = solarPos;
+    // The unit vector toward the sun, in the game's axes: east is +X, north is +Z, up is +Y.
+    function sunVector(el, az) {
+        const rad = Math.PI / 180;
+        const e = el * rad, a = az * rad;
+        return [Math.sin(a) * Math.cos(e), Math.sin(e), Math.cos(a) * Math.cos(e)];
+    }
+    PA.sunVector = sunVector;
+    // The sky palette, by sun elevation: [elevation, zenith, horizon]. Blended between the keys.
+    const SKY_KEYS = [
+        [10, [78, 152, 222], [246, 226, 206]], // day
+        [0, [92, 140, 206], [252, 190, 128]], // golden hour, the sun on the horizon
+        [-6, [62, 88, 150], [236, 122, 104]], // civil twilight: the orange band
+        [-12, [34, 46, 92], [92, 80, 120]], // nautical twilight
+        [-18, [14, 20, 42], [30, 34, 58]], // astronomical twilight: almost night
+    ];
+    function mix(a, b, t) {
+        return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    }
+    function palette(el) {
+        if (el >= SKY_KEYS[0][0])
+            return { zenith: SKY_KEYS[0][1], horizon: SKY_KEYS[0][2] };
+        for (let i = 0; i < SKY_KEYS.length - 1; i++) {
+            const hi = SKY_KEYS[i], lo = SKY_KEYS[i + 1];
+            if (el >= lo[0]) {
+                const t = (hi[0] - el) / (hi[0] - lo[0]);
+                const s = t * t * (3 - 2 * t); // a smooth step between the keys
+                return { zenith: mix(hi[1], lo[1], s), horizon: mix(hi[2], lo[2], s) };
+            }
+        }
+        const last = SKY_KEYS[SKY_KEYS.length - 1];
+        return { zenith: last[1], horizon: last[2] };
+    }
+    // The light at a moment on the solar clock.
+    function lightAt(hours) {
+        const ms = PA.DAY_MS + hours * 3600000;
+        const p = solarPos(ms, PA.PLACE.lat, PA.PLACE.lon);
+        const sun = sunVector(p.el, p.az);
+        const pal = palette(p.el);
+        // Direct sun: full above 6 degrees, fading to nothing at the horizon.
+        const direct = Math.max(0, Math.min(1, p.el / 6));
+        // The colour of the sun: white-gold high up, warm and deeper orange as it sinks.
+        const warm = Math.max(0, Math.min(1, p.el / 10));
+        const sunCol = [255, 168 + 78 * warm, 92 + 128 * warm];
+        // Ambient sky light: the sky's colour (mostly overhead), with a floor so night is dim, not black.
+        const sky = (k) => (0.6 * pal.zenith[k] + 0.4 * pal.horizon[k]) / 255;
+        const ambient = [0, 1, 2].map(k => 0.16 + 0.9 * sky(k));
+        return { hours, el: p.el, az: p.az, sun, sunCol, direct, zenith: pal.zenith, horizon: pal.horizon, ambient };
+    }
+    PA.lightAt = lightAt;
+    // How fast the solar clock runs, in hours per second of flight: still, slow (an hour in three
+    // minutes, so the sun is seen to move in a mission), fast (an hour a minute).
+    PA.SUN_RATES = [0, 1 / 180, 1 / 60];
+    PA.SUN_NAMES = ['Still', 'Slow', 'Fast'];
+    // The solar clock: hours from midnight, wrapped to 0-24.
+    function wrapHours(h) {
+        return ((h % 24) + 24) % 24;
+    }
+    PA.wrapHours = wrapHours;
+    // ---- Clouds: one deck of cumulus at a height ------------------------------------------
+    PA.CLOUD_BASE = 520; // metres: the flat base of the deck
+    PA.CLOUD_SCALE = 300; // metres: the size of one cloud cell in the noise
+    PA.CLOUD_COVER = 0.42; // about 40% of the sky is cloud
+    const CLOUD_THRESHOLD = 0.52; // the noise level above which there is cloud
+    // The cloud density at ground position (X, Z) at time t (seconds): 0 is clear, 1 is cloud.
+    // Three octaves of value noise, drifting with the wind. The ramp is soft, so the edges are soft.
+    function cloudDensity(X, Z, t) {
+        const u = (X - PA.WIND.X * t) / PA.CLOUD_SCALE, v = (Z - PA.WIND.Z * t) / PA.CLOUD_SCALE;
+        const f = PA.noise2(u, v) * 0.55 + PA.noise2(u * 2.1 + 5.2, v * 2.1 + 1.3) * 0.3 + PA.noise2(u * 4.3 + 9.1, v * 4.3 + 7.7) * 0.15;
+        const x = (f - CLOUD_THRESHOLD) * 6;
+        return x <= 0 ? 0 : x >= 1 ? 1 : x;
+    }
+    PA.cloudDensity = cloudDensity;
+    // Where the sun's ray from ground point (X, Z) meets the deck, and how much cloud is on it.
+    // Returns the cloud density at that point: the shadow on the ground is 1 minus this, times a share.
+    function cloudShadow(X, Z, t, sun, el) {
+        if (el <= 2)
+            return 0;
+        const reach = PA.CLOUD_BASE / Math.tan(el * Math.PI / 180);
+        const hz = Math.hypot(sun[0], sun[2]) || 1;
+        const px = X + (sun[0] / hz) * reach, pz = Z + (sun[2] / hz) * reach;
+        return cloudDensity(px, pz, t);
+    }
+    PA.cloudShadow = cloudShadow;
 })(PA || (PA = {}));
 // Voxel models and sprite stacking.
 //
@@ -2067,6 +2178,7 @@ var PA;
             this.held = { fire: false, boost: false, missile: false };
             this.axes = { yaw: 0, pitch: 0 };
             this.throttleSet = CRUISE_THROTTLE; // the throttle lever, used when the flight helper is off
+            this.clock = PA.START_HOUR; // the solar clock, hours from midnight (kept across missions)
             this.pads = { lx: 0, ly: 0, rx: 0, ry: 0 }; // drone flight: the two sticks
             this.race = null;
             this.rivals = [];
@@ -2180,10 +2292,15 @@ var PA;
                 this.puffs.push(sparkle(this.rand, p.X, p.h, p.Z));
             this.onSound('chaff');
         }
+        get light() {
+            return PA.lightAt(this.clock);
+        }
         update(dtIn) {
+            var _a;
             if (this.paused)
                 return;
             const dt = Math.min(dtIn, 1 / 30);
+            this.clock = PA.wrapHours(this.clock + dt * ((_a = PA.SUN_RATES[this.settings.sunClock]) !== null && _a !== void 0 ? _a : 0));
             this.updatePuffs(dt);
             this.burnWrecks(dt);
             this.updateMarks(dt);
@@ -3424,19 +3541,21 @@ var PA;
     const DETAIL_NEAR = 260; // fine ground detail fades out by this distance
     const LANE_Z0 = 150, LANE_X0 = 60; // where the country lanes cross the origin
     const TREE_RANGE = 11; // forest squares drawn each way (40 m squares)
-    // The sun: low in the south-west sky, behind and to the left when flying north, so
-    // things are lit from the front, shadows fall ahead, and the light is warm.
-    const SUN = (() => {
-        const x = -0.5, y = 0.45, z = -0.74, l = Math.hypot(x, y, z);
-        return { x: x / l, y: y / l, z: z / l };
-    })();
-    // Shadow direction per metre of height (away from the sun, along the ground).
-    const SHADOW_X = -SUN.x / SUN.y, SHADOW_Z = -SUN.z / SUN.y;
+    // The light this frame, set by setLight(): the sun (its direction and colour), the sky palette,
+    // and the object shadows' stretch: metres along the ground per metre of height, away from the sun.
+    let L = PA.lightAt(PA.START_HOUR);
+    let SHADOW_X = 0, SHADOW_Z = 0;
+    let shadowsOn = true;
+    function setLight(g) {
+        L = g.light;
+        const el = Math.max(3, L.el) * Math.PI / 180;
+        const hz = Math.hypot(L.sun[0], L.sun[2]) || 1;
+        const stretch = 1 / Math.tan(el);
+        SHADOW_X = -(L.sun[0] / hz) * stretch;
+        SHADOW_Z = -(L.sun[2] / hz) * stretch;
+        shadowsOn = L.el > 2;
+    }
     // Colours (red, green, blue).
-    const ZENITH = [78, 152, 222];
-    const HORIZON = [246, 226, 206];
-    const HAZE = [236, 226, 212];
-    const HAZE_PACKED = (0xff000000 | (212 << 16) | (226 << 8) | 236) >>> 0;
     // Camera placement for each view: how far behind the plane, how high, how far it looks down.
     const VIEWS = {
         chase: { back: CAM_BACK, up: CAM_UP, tilt: TILT },
@@ -3560,7 +3679,7 @@ var PA;
     function groundColor(X, Z, dist, dx, dy, dz, t) {
         const fog = fogAt(dist);
         if (fog > 0.985)
-            return HAZE_PACKED;
+            return pack(L.horizon[0], L.horizon[1], L.horizon[2]);
         const near = Math.max(0, 1 - dist / DETAIL_NEAR);
         let r = 0, g = 0, b = 0;
         let water = false;
@@ -3834,6 +3953,13 @@ var PA;
                 b *= 1 + s;
             }
         }
+        // Light: the sun's colour times how much of it reaches the ground (less under cloud), plus the
+        // sky's own light. At night the ground goes dark; at dusk it takes the sky's warmth.
+        const shade = L.direct > 0 && dist < 2600 ? cloudShadowAt(X, Z) : 0;
+        const lit = L.direct * (1 - shade);
+        r *= (L.ambient[0] * 0.7 + (L.sunCol[0] / 255) * 0.5 * lit) * 1.1;
+        g *= (L.ambient[1] * 0.7 + (L.sunCol[1] / 255) * 0.5 * lit) * 1.1;
+        b *= (L.ambient[2] * 0.7 + (L.sunCol[2] / 255) * 0.5 * lit) * 1.1;
         if (water) {
             // Waves, the sky reflected at a low angle, and the sun glittering on the water.
             const wave = Math.sin(X * 0.11 + t * 1.3) * Math.sin(Z * 0.09 - t * 0.9) * 0.5 + Math.sin((X + Z) * 0.05 + t * 0.7) * 0.5;
@@ -3842,10 +3968,10 @@ var PA;
             g *= k;
             b *= k;
             const q = 1 + dy, q2 = q * q, fres = q2 * q2 * q;
-            r += (HORIZON[0] - r) * fres * 0.7;
-            g += (HORIZON[1] - g) * fres * 0.7;
-            b += (HORIZON[2] - b) * fres * 0.7;
-            const refl = dx * SUN.x - dy * SUN.y + dz * SUN.z;
+            r += (L.horizon[0] - r) * fres * 0.7;
+            g += (L.horizon[1] - g) * fres * 0.7;
+            b += (L.horizon[2] - b) * fres * 0.7;
+            const refl = dx * L.sun[0] + dy * L.sun[1] + dz * L.sun[2];
             if (refl > 0.94) {
                 const u = (refl - 0.94) / 0.06, u2 = u * u;
                 const glint = u2 * u2 * u2 * (0.5 + 0.5 * Math.sin(X * 1.7 + Z * 1.3 + t * 6));
@@ -3854,29 +3980,19 @@ var PA;
                 b += 220 * glint;
             }
         }
-        else if (dist < 900) {
-            // Cloud shadows drifting across the land.
-            const cs = PA.noise2((X + t * 6) / 340, Z / 340);
-            if (cs > 0.56) {
-                const s = 1 - Math.min(1, (cs - 0.56) / 0.12) * 0.2;
-                r *= s;
-                g *= s;
-                b *= s;
-            }
-        }
-        r += (HAZE[0] - r) * fog;
-        g += (HAZE[1] - g) * fog;
-        b += (HAZE[2] - b) * fog;
+        r += (L.horizon[0] - r) * fog;
+        g += (L.horizon[1] - g) * fog;
+        b += (L.horizon[2] - b) * fog;
         return pack(Math.min(255, r), Math.min(255, g), Math.min(255, b));
     }
     // The sky along the unit ray: a gradient, a glow round the sun, the sun itself, far mountains.
     function skyColor(dx, dy, dz) {
         const k = Math.min(1, Math.max(0, dy / 0.55));
         const s = k * k * (3 - 2 * k);
-        let r = HORIZON[0] + (ZENITH[0] - HORIZON[0]) * s;
-        let g = HORIZON[1] + (ZENITH[1] - HORIZON[1]) * s;
-        let b = HORIZON[2] + (ZENITH[2] - HORIZON[2]) * s;
-        const sun = dx * SUN.x + dy * SUN.y + dz * SUN.z;
+        let r = L.horizon[0] + (L.zenith[0] - L.horizon[0]) * s;
+        let g = L.horizon[1] + (L.zenith[1] - L.horizon[1]) * s;
+        let b = L.horizon[2] + (L.zenith[2] - L.horizon[2]) * s;
+        const sun = dx * L.sun[0] + dy * L.sun[1] + dz * L.sun[2];
         if (sun > 0.3) {
             const s2 = sun * sun, s6 = s2 * s2 * s2, s12 = s6 * s6, s48 = s12 * s12 * s12 * s12;
             const wide = s6 * 0.22, glow = s48 * 0.55;
@@ -3915,9 +4031,9 @@ var PA;
                 return pack(r, g, b);
             }
             const hz = 0.45;
-            r += (HAZE[0] - r) * hz;
-            g += (HAZE[1] - g) * hz;
-            b += (HAZE[2] - b) * hz;
+            r += (L.horizon[0] - r) * hz;
+            g += (L.horizon[1] - g) * hz;
+            b += (L.horizon[2] - b) * hz;
         }
         return pack(r, g, b);
     }
@@ -3934,7 +4050,7 @@ var PA;
         }
         const t = g.time;
         const camY = Math.max(1, c.py);
-        const sunScreen = project(c, c.px + SUN.x * 8000, c.py + SUN.y * 8000, c.pz + SUN.z * 8000);
+        const sunScreen = project(c, c.px + L.sun[0] * 8000, c.py + L.sun[1] * 8000, c.pz + L.sun[2] * 8000);
         const sunX = sunScreen ? sunScreen[0] * PA.RES : 0, sunY = sunScreen ? sunScreen[1] * PA.RES : 0;
         for (let y = 0; y < HD; y++) {
             const by = (HD / 2 - (y + 0.5)) / F;
@@ -3965,6 +4081,9 @@ var PA;
                     }
                     const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
                     col = skyColor(dx / len, dy / len, dz / len);
+                    const cl = cloudOverSky(c.px, c.py, c.pz, dx / len, dy / len, dz / len);
+                    if (cl)
+                        col = blendPacked(col, cl);
                 }
                 bg32[row + x] = col;
                 prev = col;
@@ -3987,35 +4106,6 @@ var PA;
         return cv;
     }
     let TEX = null;
-    function cloudTexture(seed) {
-        const cv = document.createElement('canvas');
-        cv.width = 160;
-        cv.height = 80;
-        const x = cv.getContext('2d');
-        if (!x)
-            return cv;
-        const rnd = PA.random(seed);
-        const blobs = [];
-        for (let i = 0; i < 9; i++)
-            blobs.push([30 + rnd() * 100, 34 + rnd() * 18, 14 + rnd() * 16]);
-        // Shaded underside first, then the lit tops.
-        for (const [bx, by, br] of blobs) {
-            const g1 = x.createRadialGradient(bx, by + 6, 0, bx, by + 6, br);
-            g1.addColorStop(0, 'rgba(206,214,228,0.9)');
-            g1.addColorStop(1, 'rgba(206,214,228,0)');
-            x.fillStyle = g1;
-            x.fillRect(0, 0, 160, 80);
-        }
-        for (const [bx, by, br] of blobs) {
-            const g2 = x.createRadialGradient(bx - 3, by - 4, 0, bx - 3, by - 4, br * 0.9);
-            g2.addColorStop(0, 'rgba(255,255,255,0.95)');
-            g2.addColorStop(0.6, 'rgba(255,252,246,0.7)');
-            g2.addColorStop(1, 'rgba(255,252,246,0)');
-            x.fillStyle = g2;
-            x.fillRect(0, 0, 160, 80);
-        }
-        return cv;
-    }
     function textures() {
         if (TEX)
             return TEX;
@@ -4037,7 +4127,6 @@ var PA;
             smoke: softDisc(64, [[0, 'rgba(120,118,124,0.75)'], [0.55, 'rgba(140,138,146,0.35)'], [1, 'rgba(150,150,156,0)']]),
             dust: softDisc(64, [[0, 'rgba(214,196,160,0.7)'], [1, 'rgba(214,196,160,0)']]),
             shadow: softDisc(64, [[0, 'rgba(24,30,46,0.45)'], [0.6, 'rgba(24,30,46,0.25)'], [1, 'rgba(24,30,46,0)']]),
-            clouds: [cloudTexture(3), cloudTexture(11), cloudTexture(29), cloudTexture(47)],
             vignette: vig,
         };
         return TEX;
@@ -4063,34 +4152,80 @@ var PA;
         silhouettes[name] = cv;
         return cv;
     }
-    // ---- 2. Clouds ----------------------------------------------------------------------
-    function clouds(ctx, g, c) {
-        const tex = textures();
-        const cell = 420;
-        const i0 = Math.floor(c.px / cell) - 5, j0 = Math.floor(c.pz / cell) - 5;
-        const list = [];
-        for (let i = i0; i <= i0 + 10; i++) {
-            for (let j = j0; j <= j0 + 10; j++) {
-                if (PA.cellNoise(i, j, 23) < 0.42)
-                    continue;
-                const X = i * cell + PA.cellNoise(i, j, 29) * 300 + g.time * 4;
-                const Z = j * cell + PA.cellNoise(i, j, 31) * 300;
-                const h = 190 + PA.cellNoise(i, j, 37) * 90;
-                const p = project(c, X, h, Z);
-                if (!p || p[2] < 80)
-                    continue;
-                list.push([p[0], p[1], p[2], 100 + PA.cellNoise(i, j, 41) * 90, Math.floor(PA.cellNoise(i, j, 43) * 4)]);
+    // ---- 2. Clouds: one deck over the land, lit by the sun, casting shadows on the ground ----
+    //
+    // The deck's density (light.ts, from Generate Clouds' noise) is sampled on a grid of 30 m cells
+    // round the camera, once every few frames. A sky ray that meets the deck, and a ground point whose
+    // sun ray does, read the grid: a few lookups per pixel, not a noise field.
+    const CG_CELL = 30; // metres per grid cell
+    const CG_N = 200; // cells a side: a 6 km window round the camera
+    const cloudGrid = new Float32Array(CG_N * CG_N);
+    let cgX0 = 0, cgZ0 = 0, cgT = -1e9;
+    function updateClouds(t, camX, camZ) {
+        const half = (CG_N * CG_CELL) / 2;
+        const recentre = Math.abs(camX - cgX0 - half) > 600 || Math.abs(camZ - cgZ0 - half) > 600;
+        if (!recentre && Math.abs(t - cgT) < 0.4)
+            return;
+        cgX0 = Math.round((camX - half) / CG_CELL) * CG_CELL;
+        cgZ0 = Math.round((camZ - half) / CG_CELL) * CG_CELL;
+        for (let j = 0; j < CG_N; j++) {
+            for (let i = 0; i < CG_N; i++) {
+                cloudGrid[j * CG_N + i] = PA.cloudDensity(cgX0 + i * CG_CELL, cgZ0 + j * CG_CELL, t);
             }
         }
-        list.sort((a, b) => b[2] - a[2]);
-        for (const [x, y, zc, size, v] of list) {
-            const w = (size * FOCAL) / zc;
-            if (w < 4)
-                continue;
-            ctx.globalAlpha = Math.max(0, 1 - (1 - Math.exp(-zc / (FOG * 1.6))) * 0.9);
-            ctx.drawImage(tex.clouds[v], x - w / 2, y - w / 4, w, w / 2);
-        }
-        ctx.globalAlpha = 1;
+        cgT = t;
+    }
+    // The cloud density at (X, Z): bilinear in the grid, and none outside it.
+    function cloudAt(X, Z) {
+        const fx = (X - cgX0) / CG_CELL, fz = (Z - cgZ0) / CG_CELL;
+        if (fx < 0 || fz < 0 || fx >= CG_N - 1 || fz >= CG_N - 1)
+            return 0;
+        const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
+        const k = j * CG_N + i;
+        const a = cloudGrid[k], b = cloudGrid[k + 1], c = cloudGrid[k + CG_N], d = cloudGrid[k + CG_N + 1];
+        return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+    }
+    // The share of the sun's light a cloud takes from ground point (X, Z): the deck on the sun's ray.
+    function cloudShadowAt(X, Z) {
+        const el = Math.max(2, L.el) * Math.PI / 180;
+        const hz = Math.hypot(L.sun[0], L.sun[2]) || 1;
+        const reach = PA.CLOUD_BASE / Math.tan(el);
+        const d = cloudAt(X + (L.sun[0] / hz) * reach, Z + (L.sun[2] / hz) * reach);
+        return Math.min(0.7, d * 0.7);
+    }
+    // The deck seen along a sky ray from the camera: [r, g, b, opacity], or null if the ray misses it.
+    // The cloud is lit by the sun's colour where the sun reaches it (Beer's law, two samples toward the
+    // sun) and takes the sky's ambient colour on its shaded side. It fades into the haze with distance.
+    function cloudOverSky(px, py, pz, dx, dy, dz) {
+        if (Math.abs(dy) < 0.02 || (PA.CLOUD_BASE - py) * dy <= 0)
+            return null;
+        const t = (PA.CLOUD_BASE - py) / dy;
+        const x = px + dx * t, z = pz + dz * t;
+        const d = cloudAt(x, z);
+        if (d <= 0.02)
+            return null;
+        const hz = Math.hypot(L.sun[0], L.sun[2]) || 1;
+        const d2 = cloudAt(x + (L.sun[0] / hz) * 90, z + (L.sun[2] / hz) * 90);
+        const sunlit = Math.exp(-(d * 0.9 + d2 * 1.4)) * L.direct; // how much sun gets through to this point
+        const far = 1 - smooth01((t - 1200) / 3500);
+        const op = Math.min(0.85, d * 1.1) * far;
+        if (op <= 0.01)
+            return null;
+        // The shaded side takes the sky's ambient colour; the lit side the sun's colour, lifted toward white.
+        const shade = [0, 1, 2].map(k => L.ambient[k] * 255 * 0.9);
+        const lit = [0, 1, 2].map(k => (L.sunCol[k] + 255) / 2);
+        return [
+            shade[0] + (lit[0] - shade[0]) * sunlit, shade[1] + (lit[1] - shade[1]) * sunlit, shade[2] + (lit[2] - shade[2]) * sunlit, op
+        ];
+    }
+    function smooth01(v) {
+        const x = Math.max(0, Math.min(1, v));
+        return x * x * (3 - 2 * x);
+    }
+    function blendPacked(col, cl) {
+        const a = cl[3];
+        const r0 = col & 255, g0 = (col >>> 8) & 255, b0 = (col >>> 16) & 255;
+        return pack(r0 + (cl[0] - r0) * a, g0 + (cl[1] - g0) * a, b0 + (cl[2] - b0) * a);
     }
     // Which model a target uses, and which way it faces.
     function modelOf(t) {
@@ -4201,6 +4336,8 @@ var PA;
     }
     // A shadow the shape of the model, laid on the ground away from the sun.
     function drawShadow(ctx, c, name, X, base, Z, yaw) {
+        if (!shadowsOn)
+            return;
         const m = PA.model(name);
         const lift = base + m.h * m.size * OBJECT_SCALE * 0.35;
         const sx = X + SHADOW_X * lift, sz = Z + SHADOW_Z * lift;
@@ -4823,7 +4960,7 @@ var PA;
     // ---- Screen overlays ----------------------------------------------------------------
     // A lens flare when the sun is in front of the camera.
     function lensFlare(ctx, c) {
-        const s = project(c, c.px + SUN.x * 8000, c.py + SUN.y * 8000, c.pz + SUN.z * 8000);
+        const s = project(c, c.px + L.sun[0] * 8000, c.py + L.sun[1] * 8000, c.pz + L.sun[2] * 8000);
         if (!s || s[0] < -40 || s[0] > PA.W + 40 || s[1] < -40 || s[1] > PA.H + 40)
             return;
         ctx.globalAlpha = 0.6;
@@ -4989,11 +5126,12 @@ var PA;
         ctx.imageSmoothingEnabled = false;
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         const c = makeCam(g);
+        setLight(g);
+        updateClouds(g.time, c.px, c.pz);
         paintBackground(ctx, g, c);
         const t1 = performance.now();
         // Everything from here is drawn in layout units (480×270), scaled up to the canvas.
         ctx.setTransform(PA.RES, 0, 0, PA.RES, 0, 0);
-        clouds(ctx, g, c);
         objects(ctx, g, c);
         birds(ctx, g, c);
         const t2 = performance.now();
@@ -5203,7 +5341,7 @@ var PA;
         mode: 'glider', control: 'drag', view: 'chase', difficulty: 'felix', sound: 1,
         volMusic: 20, volGun: 25, volTurn: 25, volWarn: 60,
         forces: 0, flightHelp: 1, safeFlight: 1, invincible: 0, autoReload: 1,
-        enemyWave: 1, allies: 1, showErrors: 0, droneKind: 'camera', stickMode: 'mode2',
+        enemyWave: 1, allies: 1, showErrors: 0, sunClock: 1, droneKind: 'camera', stickMode: 'mode2',
     };
     const VIEW_ORDER = ['chase', 'top', 'cockpit'];
     const TUTORIAL_KEY = 'pa_warthog.tutorialSeen';
@@ -5742,6 +5880,7 @@ var PA;
         $('gun').textContent = a.mode === 'air' ? 'air: straight'
             : a.mode === 'ground' ? (Math.abs(a.pitch) * 180 / Math.PI).toFixed(1) + '° down'
                 : 'straight';
+        $('sunTime').textContent = clockText(g.clock, g.light.el);
         $('speed').textContent = g.settings.mode === 'drone' ? Math.round(p.speed * 3.6) + ' km/h' : Math.round(p.speed * 1.94) + ' kt';
         $('alt').textContent = Math.round(p.h - PA.groundAt(p.X, p.Z)) + ' m';
         $('aoa').textContent = (p.alpha * 180 / Math.PI).toFixed(0) + '°';
@@ -5762,6 +5901,12 @@ var PA;
         }
         return 'Mission ' + g.missionNumber + ': ' + (goal === 'air' ? 'shoot down ' : 'destroy ') + left + ' more '
             + (goal === 'air' ? 'fighter' : goal === 'ship' ? 'ship' : 'ground target') + (left === 1 ? '' : 's');
+    }
+    // The solar clock in the readout: the time, and what the sun is doing.
+    function clockText(hours, el) {
+        const h = Math.floor(hours), m = Math.floor((hours - h) * 60);
+        const word = el > 10 ? 'high sun' : el > 0 ? 'low sun, long shadows' : el > -6 ? 'dusk' : 'night';
+        return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ' · ' + word;
     }
     function message() {
         const g = game;

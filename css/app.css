@@ -516,6 +516,13 @@ textarea.field { resize: vertical; font-size: 15px; }
 .objective:empty { display: none; }
 
 /* End mission: a small button under the objective line, to go on to the next mission. */
+.sunPill {
+  position: absolute;
+  top: 12px;
+  right: 64px;
+  font-size: 14px;
+}
+
 .endMission {
   position: absolute;
   left: 50%;
