@@ -104,3 +104,8 @@
 - **Real time means a mission starts at its own hour.** A 1-minute-per-minute clock with per-mission start times gives dawn, afternoon and dusk missions without any setting. The first version had a sun-speed setting; Jimmy's answer ("nothing static") removed it.
 - **Weather is per flight, from the seed.** The cover threshold is the one knob that gives clear, scattered, overcast and rain from the same noise; calibrate the threshold against the cover share with a sweep, not by eye.
 - **Put the open questions beside the feedback box.** A "Questions" group in ⚙️ keeps the answers tied to the screen they are about.
+
+## 2026-11-25 (fix: sprites off-centre and half size since the 960×540 change)
+
+- **A helper that resets the transform to 1× breaks every later draw.** The sprite code set an absolute matrix in layout units and then reset to identity. After the first sprite, the plane and everything drawn after it used device pixels, so the plane sat a quarter of the way across and objects were half size. The check that caught it was a screenshot against an old one, not the tests. Every reset goes back to the layout scale (`resetLayout` in `voxel.ts`), and every absolute matrix multiplies by RES (`setLayout`).
+- **Compare a new screenshot with an old one of the same view.** The plane was centred in the 480×270 frames and not in the 960×540 frames; a side-by-side made the change obvious.

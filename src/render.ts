@@ -815,7 +815,7 @@ namespace PA {
       bot.push([fx, Hh + wave * 0.9 + sag * 1.8]);
     }
     const cr = Math.cos(roll), sr = Math.sin(roll);
-    ctx.setTransform(cr, sr, -sr, cr, x, y);
+    setLayout(ctx, cr, sr, -sr, cr, x, y);
     const band = (a: [number, number][], b: [number, number][], col: string) => {
       ctx.fillStyle = col;
       ctx.beginPath();
@@ -827,7 +827,7 @@ namespace PA {
     };
     band(top, mid, '#ef7f6a');
     band(mid, bot, '#fff4d6');
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    resetLayout(ctx);
   }
 
   // A windmill's four sails, turning in the breeze.

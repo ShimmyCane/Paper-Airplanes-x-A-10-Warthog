@@ -794,6 +794,16 @@ var PA;
     }
     PA.modelToScreen = modelToScreen;
     // Draw the stack. Far away it becomes a few layers, then a single dot.
+    // Layout transforms: positions and sizes are in layout units (480×270); the canvas is RES times
+    // that. A sprite sets its own matrix in layout units, and puts the layout scale back after itself.
+    function setLayout(ctx, a, b, c, d, e, f) {
+        ctx.setTransform(a * PA.RES, b * PA.RES, c * PA.RES, d * PA.RES, e * PA.RES, f * PA.RES);
+    }
+    PA.setLayout = setLayout;
+    function resetLayout(ctx) {
+        ctx.setTransform(PA.RES, 0, 0, PA.RES, 0, 0);
+    }
+    PA.resetLayout = resetLayout;
     function drawModel(ctx, m, p) {
         const wide = Math.max(m.w, m.l) * p.px;
         if (wide < 2.5) {
@@ -815,11 +825,11 @@ var PA;
             const k = m.top > 0 ? (z / m.top) * (z / m.top) * sway : 0;
             for (let s = 0; s < sub; s++) {
                 const off = (z + s / sub) * f.step;
-                ctx.setTransform(f.a, f.b, f.c, f.d, p.sx + ex + f.sr * off + f.cr * k, p.sy + ey - f.cr * off + f.sr * k);
+                setLayout(ctx, f.a, f.b, f.c, f.d, p.sx + ex + f.sr * off + f.cr * k, p.sy + ey - f.cr * off + f.sr * k);
                 ctx.drawImage(slice, 0, 0);
             }
         }
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        resetLayout(ctx);
     }
     PA.drawModel = drawModel;
     const stackCache = new Map();
@@ -899,9 +909,9 @@ var PA;
         const cr = Math.cos(p.roll), sr = Math.sin(p.roll);
         const lean = e.lift > 1 ? -(p.sway || 0) / (e.lift * s) : 0; // sideways per pixel of height
         // Matrix = translate(sx,sy) * rotate(roll) * scale(s) * shear(lean)
-        ctx.setTransform(cr * s, sr * s, (cr * lean - sr) * s, (sr * lean + cr) * s, p.sx, p.sy);
+        setLayout(ctx, cr * s, sr * s, (cr * lean - sr) * s, (sr * lean + cr) * s, p.sx, p.sy);
         ctx.drawImage(e.img, -e.ox, -e.oy);
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        resetLayout(ctx);
     }
     PA.drawModelCached = drawModelCached;
 })(PA || (PA = {}));
@@ -4585,7 +4595,7 @@ var PA;
             bot.push([fx, Hh + wave * 0.9 + sag * 1.8]);
         }
         const cr = Math.cos(roll), sr = Math.sin(roll);
-        ctx.setTransform(cr, sr, -sr, cr, x, y);
+        PA.setLayout(ctx, cr, sr, -sr, cr, x, y);
         const band = (a, b, col) => {
             ctx.fillStyle = col;
             ctx.beginPath();
@@ -4599,7 +4609,7 @@ var PA;
         };
         band(top, mid, '#ef7f6a');
         band(mid, bot, '#fff4d6');
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        PA.resetLayout(ctx);
     }
     // A windmill's four sails, turning in the breeze.
     function sails(ctx, x, y, px, angle, roll, alpha) {
