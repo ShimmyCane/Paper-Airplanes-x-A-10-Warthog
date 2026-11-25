@@ -21,7 +21,7 @@ Jimmy:
 4. **Training and race.** Mission 1 Dots (6 dots, in order, radar labels, height ignored). Mission 2 Rings (8 rings, in order, next one lit). Mission 3 Circuit (two laps, 8 gates, 2 friends and 2 allied planes). Racers' pace is 50–90% of 60 m/s, and drops by up to 15% every 1.5–3.5 s.
 5. **End mission** button in jet mode, under the objective line. A finished race offers "Next mission".
 6. **Graphics** in five increments, tracked in `research/graphics_todo.md`: 960×540 canvas; farmland plots with more crops; country lanes; village houses and farm ponds; railway ballast and level crossings.
-7. Tests: 58 → 83 checks in `tools/flight_test.js`, all pass. Browser: no console errors at 1180×820, 768×1024 and 390×844; no horizontal scroll.
+7. Tests: `tools/flight_test.js` has 131 checks, all pass. New ones cover the lock, the dots and rings order, the circuit, End mission, flak and shake. Browser: no console errors at 1180×820, 768×1024 and 390×844; no horizontal scroll.
 
 ## Readings I took (tell me if wrong)
 
