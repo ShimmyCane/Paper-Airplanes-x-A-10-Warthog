@@ -9,7 +9,7 @@ The first three teach the controls and give the first race, with nothing shootin
 
 | # | Name | Goal | Start | What it adds |
 |---|------|------|-------|--------------|
-| 1 | Dots | 6 dots flown over, in order | takeoff | Numbered dots on the radar and in the view. Height does not count. |
+| 1 | Dots | up to 50 dots flown over, in order | takeoff | Numbered dots on the radar and in the view. Height does not count. Later dots are further apart and smaller. |
 | 2 | Rings | 8 rings flown through, in order | takeoff | The next ring is lit. Fly through at its height. |
 | 3 | Circuit | 2 laps of an 8-gate circuit | takeoff | Race two friends and two allied planes. |
 | 4 | Range Day | 3 ground targets | takeoff | Controls only. No fighters, no guns. |
