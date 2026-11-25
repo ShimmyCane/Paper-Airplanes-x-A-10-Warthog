@@ -109,6 +109,28 @@ var PA;
     PA.regionValue = regionValue;
     PA.LAKE_LEVEL = 0.74; // wildValue above this is a lake
     PA.FOREST_LEVEL = 0.6; // between this and the lake level is forest
+    // A small pond in the farmland: 0 none, 1 water, 2 the sandy rim. Ponds sit on a 60 m grid,
+    // each one at a random spot in its cell, so they are placed the same way every flight.
+    function pondAt(X, Z) {
+        const ci = Math.floor(X / 60), cj = Math.floor(Z / 60);
+        let rim = 0;
+        for (let i = ci - 1; i <= ci + 1; i++) {
+            for (let j = cj - 1; j <= cj + 1; j++) {
+                if (cellNoise(i, j, 103) > 0.12)
+                    continue;
+                const px = (i + 0.2 + 0.6 * cellNoise(i, j, 107)) * 60;
+                const pz = (j + 0.2 + 0.6 * cellNoise(i, j, 109)) * 60;
+                const r = 6 + 6 * cellNoise(i, j, 113);
+                const d = Math.hypot(X - px, Z - pz) / r;
+                if (d < 1)
+                    return 1;
+                if (d < 1.25)
+                    rim = 2;
+            }
+        }
+        return rim;
+    }
+    PA.pondAt = pondAt;
     function isLake(X, Z) {
         if (isSea(X, Z) || Math.abs(X - PA.ROAD_X) < 30 || Math.abs(X - PA.RAIL_X) < 20)
             return false;
@@ -3579,16 +3601,36 @@ var PA;
                 r = 172;
                 g = 162;
                 b = 146;
-                if (railD < 1.8 && mod(Z, 1.5) < 0.55) {
-                    r = 118;
-                    g = 90;
-                    b = 68;
+                if (laneZ < 2.8) {
+                    // A level crossing: the lane runs over the line on white and grey planks.
+                    r = 226;
+                    g = 224;
+                    b = 218;
+                    if (mod(X, 1.1) < 0.5) {
+                        r = 128;
+                        g = 124;
+                        b = 120;
+                    }
                 }
-                if (railD > 0.62 && railD < 0.86) {
-                    r = 88;
-                    g = 94;
-                    b = 100;
+                else {
+                    if (railD < 1.8 && mod(Z, 1.5) < 0.55) {
+                        r = 118;
+                        g = 90;
+                        b = 68;
+                    }
+                    if (railD > 0.62 && railD < 0.86) {
+                        r = 88;
+                        g = 94;
+                        b = 100;
+                    }
                 }
+            }
+            else if (railD < 3.8) {
+                // Ballast: the gravel either side of the track, speckled.
+                const stone = PA.hash2(Math.floor(X * 3), Math.floor(Z * 3));
+                r = 188 - 14 * stone;
+                g = 178 - 14 * stone;
+                b = 162 - 12 * stone;
             }
             else if (laneD < 3.6 && fRegion < 0.66 && fWild < PA.FOREST_LEVEL) {
                 if (laneD < 2.8) {
@@ -3606,6 +3648,20 @@ var PA;
                     r = 150;
                     g = 196;
                     b = 112; // the verge
+                }
+            }
+            else if (fRegion < 0.42 && fWild < PA.FOREST_LEVEL && PA.pondAt(X, Z) > 0) {
+                // A pond in the fields: water with a sandy rim.
+                if (PA.pondAt(X, Z) === 2) {
+                    r = 236;
+                    g = 220;
+                    b = 168;
+                }
+                else {
+                    water = true;
+                    r = 116;
+                    g = 196;
+                    b = 220;
                 }
             }
             else if (fWild > PA.LAKE_LEVEL && roadD > 30 && railD > 20) {
@@ -4088,6 +4144,15 @@ var PA;
                     const v = PA.cellNoise(i, j, 67);
                     const name = v < 0.4 ? 'house1' : v < 0.7 ? 'house2' : v < 0.85 ? 'city1' : 'city';
                     add(name, cx + 4, 0, cz + 4, Math.floor(v * 4) * (Math.PI / 2), false);
+                }
+                else if (biome === 'farm' && PA.cellNoise(i, j, 97) < 0.1) {
+                    // A village: three or four houses close together, each turned a little differently.
+                    for (let k = 0; k < 4; k++) {
+                        if (k === 3 && PA.cellNoise(i, j, 127) < 0.5)
+                            break;
+                        const hx = cx + (PA.cellNoise(i, j, 101 + k) - 0.5) * 26, hz = cz + (PA.cellNoise(i, j, 117 + k) - 0.5) * 26;
+                        add(PA.cellNoise(i, j, 131 + k) < 0.6 ? 'farm' : 'barn', hx, 0, hz, PA.cellNoise(i, j, 137 + k) * 6.28, false);
+                    }
                 }
                 else if (biome === 'farm' && PA.cellNoise(i, j, 89) < 0.035) {
                     add('windmill', cx - 6, 0, cz + 3, PA.cellNoise(i, j, 91) * 6.28, false);

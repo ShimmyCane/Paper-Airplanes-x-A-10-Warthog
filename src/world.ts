@@ -72,6 +72,25 @@ namespace PA {
   export const LAKE_LEVEL = 0.74;      // wildValue above this is a lake
   export const FOREST_LEVEL = 0.6;     // between this and the lake level is forest
 
+  // A small pond in the farmland: 0 none, 1 water, 2 the sandy rim. Ponds sit on a 60 m grid,
+  // each one at a random spot in its cell, so they are placed the same way every flight.
+  export function pondAt(X: number, Z: number): number {
+    const ci = Math.floor(X / 60), cj = Math.floor(Z / 60);
+    let rim = 0;
+    for (let i = ci - 1; i <= ci + 1; i++) {
+      for (let j = cj - 1; j <= cj + 1; j++) {
+        if (cellNoise(i, j, 103) > 0.12) continue;
+        const px = (i + 0.2 + 0.6 * cellNoise(i, j, 107)) * 60;
+        const pz = (j + 0.2 + 0.6 * cellNoise(i, j, 109)) * 60;
+        const r = 6 + 6 * cellNoise(i, j, 113);
+        const d = Math.hypot(X - px, Z - pz) / r;
+        if (d < 1) return 1;
+        if (d < 1.25) rim = 2;
+      }
+    }
+    return rim;
+  }
+
   export function isLake(X: number, Z: number): boolean {
     if (isSea(X, Z) || Math.abs(X - ROAD_X) < 30 || Math.abs(X - RAIL_X) < 20) return false;
     return wildValue(X, Z) > LAKE_LEVEL;
