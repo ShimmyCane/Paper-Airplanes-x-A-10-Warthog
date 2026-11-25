@@ -5,8 +5,12 @@ var PA;
     PA.VERSION = '0.23 (2026-11-25: training dots, rings and a circuit race; flak bursts; screen shake; hostile-only lock)';
     // Internal resolution. The canvas is small on purpose: every pixel is a
     // "pixel-art pixel", and the page scales it up with no smoothing.
+    // Layout and drawing use these 480×270 units. The canvas is RES times as many pixels on each
+    // side (960×540 at RES 2, four times the pixels), so the ground and sky are painted finer and
+    // the sprites keep their shapes.
     PA.W = 480;
     PA.H = 270;
+    PA.RES = 2;
     // Side view, 2.5D: screen pixels per metre, across and up.
     PA.PPM_X = 2;
     PA.PPM_Y = 1.5;
@@ -3805,20 +3809,24 @@ var PA;
     let bg32 = new Uint32Array(0);
     let halfGround = false; // set when a device is too slow: the ground is painted every other column
     function paintBackground(ctx, g, c) {
-        if (!bg) {
-            bg = ctx.createImageData(PA.W, PA.H);
+        // The background is painted per device pixel: WD × HD of them, each a ray through the
+        // camera. F is the focal length in device pixels.
+        const WD = PA.W * PA.RES, HD = PA.H * PA.RES, F = FOCAL * PA.RES;
+        if (!bg || bg.width !== WD || bg.height !== HD) {
+            bg = ctx.createImageData(WD, HD);
             bg32 = new Uint32Array(bg.data.buffer);
         }
         const t = g.time;
         const camY = Math.max(1, c.py);
         const sunScreen = project(c, c.px + SUN.x * 8000, c.py + SUN.y * 8000, c.pz + SUN.z * 8000);
-        for (let y = 0; y < PA.H; y++) {
-            const by = (PA.H / 2 - (y + 0.5)) / FOCAL;
+        const sunX = sunScreen ? sunScreen[0] * PA.RES : 0, sunY = sunScreen ? sunScreen[1] * PA.RES : 0;
+        for (let y = 0; y < HD; y++) {
+            const by = (HD / 2 - (y + 0.5)) / F;
             const r0x = c.fx + by * c.ux, r0y = c.fy + by * c.uy, r0z = c.fz + by * c.uz;
             let prev = 0;
-            const row = y * PA.W;
-            for (let x = 0; x < PA.W; x++) {
-                const ax = (x + 0.5 - PA.W / 2) / FOCAL;
+            const row = y * WD;
+            for (let x = 0; x < WD; x++) {
+                const ax = (x + 0.5 - WD / 2) / F;
                 const dx = r0x + ax * c.rx, dy = r0y + ax * c.ry, dz = r0z + ax * c.rz;
                 let col;
                 if (dy < -0.0004) {
@@ -3833,9 +3841,9 @@ var PA;
                 }
                 else {
                     // The open sky is smooth: work out one pixel in four, except near the horizon and the sun.
-                    const nearSun = sunScreen !== null && Math.abs(x - sunScreen[0]) < 70 && Math.abs(y - sunScreen[1]) < 70;
+                    const nearSun = sunScreen !== null && Math.abs(x - sunX) < 70 * PA.RES && Math.abs(y - sunY) < 70 * PA.RES;
                     if (dy > 0.1 && !nearSun && ((x & 1) === 1 || (y & 1) === 1)) {
-                        bg32[row + x] = (x & 1) === 1 ? prev : bg32[row - PA.W + x];
+                        bg32[row + x] = (x & 1) === 1 ? prev : bg32[row - WD + x];
                         prev = bg32[row + x];
                         continue;
                     }
@@ -3896,15 +3904,15 @@ var PA;
         if (TEX)
             return TEX;
         const vig = document.createElement('canvas');
-        vig.width = PA.W;
-        vig.height = PA.H;
+        vig.width = PA.W * PA.RES;
+        vig.height = PA.H * PA.RES;
         const vx = vig.getContext('2d');
         if (vx) {
-            const grad = vx.createRadialGradient(PA.W / 2, PA.H / 2, PA.H * 0.35, PA.W / 2, PA.H / 2, PA.W * 0.62);
+            const grad = vx.createRadialGradient(vig.width / 2, vig.height / 2, vig.height * 0.35, vig.width / 2, vig.height / 2, vig.width * 0.62);
             grad.addColorStop(0, 'rgba(20,24,40,0)');
             grad.addColorStop(1, 'rgba(20,24,40,0.32)');
             vx.fillStyle = grad;
-            vx.fillRect(0, 0, PA.W, PA.H);
+            vx.fillRect(0, 0, vig.width, vig.height);
         }
         TEX = {
             mist: softDisc(64, [[0, 'rgba(255,255,255,0.85)'], [0.5, 'rgba(255,255,255,0.35)'], [1, 'rgba(255,255,255,0)']]),
@@ -4847,7 +4855,7 @@ var PA;
             return;
         ctx.globalAlpha = Math.min(0.85, g.dazzle);
         ctx.fillStyle = '#d8d2c6';
-        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.fillRect(0, 0, PA.W, PA.H);
         ctx.globalAlpha = 1;
     }
     function render(ctx, g) {
@@ -4858,6 +4866,8 @@ var PA;
         const c = makeCam(g);
         paintBackground(ctx, g, c);
         const t1 = performance.now();
+        // Everything from here is drawn in layout units (480×270), scaled up to the canvas.
+        ctx.setTransform(PA.RES, 0, 0, PA.RES, 0, 0);
         clouds(ctx, g, c);
         objects(ctx, g, c);
         birds(ctx, g, c);
@@ -4887,8 +4897,9 @@ var PA;
         }
         if (g.settings.forces)
             forces(ctx, g);
-        ctx.drawImage(textures().vignette, 0, 0);
         dazzleVeil(ctx, g);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(textures().vignette, 0, 0);
         const t3 = performance.now();
         PA.renderStats.background = PA.renderStats.background * 0.9 + (t1 - t0) * 0.1;
         // A slow device paints the ground every other column; a fast one goes back to every pixel.
