@@ -241,15 +241,22 @@ namespace PA {
       }
     } else {
       readFields(X, Z);
-      const roadD = Math.abs(X - ROAD_X), railD = Math.abs(X - RAIL_X);
+      const halfW = roadHalf(Z);
+      const roadD = Math.abs(X - roadX(Z)), railD = Math.abs(X - RAIL_X);
       // Country lanes: a loose grid, east-west every 430 m and north-south every 510 m, in farm and open land.
       const laneZ = Math.abs(mod(Z - LANE_Z0 + 215, 430) - 215), laneX = Math.abs(mod(X - LANE_X0 + 255, 510) - 255);
       const laneD = Math.min(laneZ, laneX);
-      if (roadD < ROAD_W + 1.6) {
-        if (roadD > ROAD_W) { r = 196; g = 184; b = 160; }
+      if (roadD < halfW + 1.6) {
+        if (roadD > halfW) { r = 196; g = 184; b = 160; }
+        else if (fWild > LAKE_LEVEL) {
+          // A bridge: a plank deck over the water, with a rail on each side.
+          r = 170; g = 150; b = 122;
+          if (roadD > halfW - 1.1) { r = 96; g = 90; b = 84; }
+          if (mod(Z, 3) < 0.4) { r *= 0.92; g *= 0.92; b *= 0.92; }
+        }
         else {
           r = 116; g = 121; b = 130;
-          if (roadD > ROAD_W - 1.2 && roadD < ROAD_W - 0.6) { r = 236; g = 236; b = 230; }
+          if (roadD > halfW - 1.2 && roadD < halfW - 0.6) { r = 236; g = 236; b = 230; }
           if (roadD < 0.35 && mod(Z, 16) < 8) { r = 244; g = 214; b = 112; }
         }
       } else if (railD < 2.4) {

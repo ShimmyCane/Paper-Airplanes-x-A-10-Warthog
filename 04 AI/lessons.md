@@ -109,3 +109,11 @@
 
 - **A helper that resets the transform to 1× breaks every later draw.** The sprite code set an absolute matrix in layout units and then reset to identity. After the first sprite, the plane and everything drawn after it used device pixels, so the plane sat a quarter of the way across and objects were half size. The check that caught it was a screenshot against an old one, not the tests. Every reset goes back to the layout scale (`resetLayout` in `voxel.ts`), and every absolute matrix multiplies by RES (`setLayout`).
 - **Compare a new screenshot with an old one of the same view.** The plane was centred in the 480×270 frames and not in the 960×540 frames; a side-by-side made the change obvious.
+
+## 2026-11-26 (round 19, rings, course, road, speed)
+
+- **"It doesn't go fast" was a number, not a bug.** The boost was real but the engine's thrust (6) could not beat the drag above about 125 knots. Measure the top speed with the throttle held, at two settings, before changing anything; then tune the one number in `AIR`.
+- **A test about trim breaks when the engine changes.** The level-flight check expected 60 m/s at lever 0.4; with the stronger engine the same lever settles near 94 m/s. Update the expected value with a note on why, not the tolerance.
+- **Replace a constant with a function of position before moving the thing.** The road became `roadX(Z)` and `roadHalf(Z)`. Every caller had a Z, so the change was mechanical, and vehicles on the road follow it through a stored offset.
+- **A road drawn before the lake reads as a bridge once it has a deck and rails.** The road branch already came first in the ground painting, so a bridge needed only a different colour and edge rails over water.
+- **Hills are a different kind of change.** A flat ground is assumed by the plane's floor, the painting and object placement. Do not fake hills in one of those places; add a height field used by all three in one increment.

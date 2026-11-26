@@ -15,8 +15,15 @@ namespace PA {
   }
 
   export const SEA_X = 1300;   // the coast runs north near here; east of it is the sea
-  export const ROAD_X = -120;  // the main road runs north along this line
-  export const ROAD_W = 7;     // half its width, metres
+  export const ROAD_X = -120;  // the main road runs north, meandering about this line
+  export const ROAD_W = 7;     // half its width, metres, on average
+  // The road is not straight: its centre swings east and west, and it widens and narrows.
+  export function roadX(Z: number): number {
+    return ROAD_X + 70 * Math.sin(Z / 700);
+  }
+  export function roadHalf(Z: number): number {
+    return ROAD_W + 2.5 * Math.sin(Z / 380 + 1.3);   // about 4.5 to 9.5 m either side
+  }
   // One gentle wind for the whole world (metres a second): smoke and flags lean with it.
   export const WIND = { X: 2.2, Z: -1.2 };
   export const RAIL_X = -320;  // the railway runs north along this line
@@ -92,12 +99,12 @@ namespace PA {
   }
 
   export function isLake(X: number, Z: number): boolean {
-    if (isSea(X, Z) || Math.abs(X - ROAD_X) < 30 || Math.abs(X - RAIL_X) < 20) return false;
+    if (isSea(X, Z) || Math.abs(X - roadX(Z)) < 30 || Math.abs(X - RAIL_X) < 20) return false;
     return wildValue(X, Z) > LAKE_LEVEL;
   }
 
   export function isForest(X: number, Z: number): boolean {
-    if (isSea(X, Z) || Math.abs(X - ROAD_X) < 16 || Math.abs(X - RAIL_X) < 10) return false;
+    if (isSea(X, Z) || Math.abs(X - roadX(Z)) < 16 || Math.abs(X - RAIL_X) < 10) return false;
     const w = wildValue(X, Z);
     return w > FOREST_LEVEL && w < LAKE_LEVEL - 0.02;
   }
@@ -184,6 +191,7 @@ namespace PA {
     hp: number;
     cool: number;      // gun: seconds until the next shot
     vZ?: number;       // a vehicle on the road moves this fast
+    roadOff?: number;  // a vehicle on the road: how far it sits from the road's centre
     h?: number;        // in the air: the altitude (undefined on the ground)
     vX?: number;       // in the air: flight velocity
     vZa?: number;
@@ -221,11 +229,11 @@ namespace PA {
 
   // A place on land for a cluster. It keeps off the road and the railway, so no house or
   // barn ends up sitting on a line.
-  export function landSite(rand: () => number): number {
+  export function landSite(rand: () => number, Z = 0): number {
     let X = 0;
     for (let tries = 0; tries < 8; tries++) {
       X = (rand() - 0.5) * 900;
-      if (Math.abs(X - ROAD_X) > 40 && Math.abs(X - RAIL_X) > 40) break;
+      if (Math.abs(X - roadX(Z)) > 40 && Math.abs(X - RAIL_X) > 40) break;
     }
     return X;
   }
@@ -239,18 +247,21 @@ namespace PA {
     for (let i = 0; i < count; i++) {
       const Z = baseZ + i * SPACING + rand() * 80;
       const roll = rand();
-      const landX = landSite(rand);
+      const landX = landSite(rand, Z);
       // Some vehicles drive along the road, north or south.
       const driver = (kind: string, X: number, Z: number): Target => {
         const t = target(kind, X, Z, rand);
-        if (DRIVES[kind] !== undefined && rand() < 0.5) t.vZ = (rand() < 0.5 ? -1 : 1) * DRIVES[kind];
+        if (DRIVES[kind] !== undefined && rand() < 0.5) {
+          t.vZ = (rand() < 0.5 ? -1 : 1) * DRIVES[kind];
+          t.roadOff = X - roadX(Z);
+        }
         return t;
       };
       if (roll < 0.32) {
         // Army: tanks, carriers, a SAM site or a flak gun.
         const X = landX;
-        out.push(driver('tank_mbt', ROAD_X + 4, Z));
-        out.push(driver(rand() < 0.5 ? 'tank_light' : 'apc', ROAD_X - 6, Z + 4));
+        out.push(driver('tank_mbt', roadX(Z) + 4, Z));
+        out.push(driver(rand() < 0.5 ? 'tank_light' : 'apc', roadX(Z) - 6, Z + 4));
         if (!guns) continue;
         if (rand() < 0.5) out.push(target('sam', X - 10, Z + 10, rand));
         else out.push(target('flak', X + 14, Z - 6, rand));
@@ -259,7 +270,7 @@ namespace PA {
         const X = landX;
         out.push(target('farm', X, Z, rand));
         out.push(target('barn', X + 12, Z + 9, rand));
-        out.push(driver('truck', ROAD_X + 3, Z + 6));
+        out.push(driver('truck', roadX(Z + 6) + 3, Z + 6));
       } else if (roll < 0.66) {
         // Town: towers, barracks and a SAM site.
         const X = landX;
@@ -333,7 +344,7 @@ namespace PA {
 
   export const MISSIONS: MissionSpec[] = [
     { name: 'Dots', sunStart: 6.6, brief: 'Fly roughly over each dot, in order, up to fifty. The next one is lit on the radar. End mission moves on.', goal: 'dots', count: 50, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
-    { name: 'Rings', sunStart: 9.5, brief: 'Fly through each ring, in order. Nothing shoots at you on this one.', goal: 'rings', count: 8, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+    { name: 'Rings', sunStart: 9.5, brief: 'Fly through each ring, in order. They start huge and high, and get smaller as you go. Nothing shoots at you.', goal: 'rings', count: 20, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
     { name: 'Circuit', sunStart: 13.5, brief: 'Two laps of the circuit against two friends and two allied planes. Hold your speed.', goal: 'race', count: 2, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
     { name: 'Range Day', sunStart: 15.2, brief: 'Practice on the range. Three ground targets, no fighters, no guns.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
     { name: 'First Contact', sunStart: 16.8, brief: 'One fighter now and then. Hold the nose on a target until it locks.', goal: 'ground', count: 4, ships: 0, guns: false, start: 'takeoff', firstWave: 90, waveEvery: 90, wave: 2 },
@@ -358,18 +369,32 @@ namespace PA {
   // They run north from the runway. Dots get further apart and smaller as you go (up to 50 of
   // them), so the first few are easy and the later ones ask for more distance and precision.
   export const DOT_MAX = 50;
+  // The course is not a straight line: it wanders left and right, and the rings are higher and
+  // bigger at the start. A ring's size shrinks as you go on (70 m at first, 12 m at the end).
   export function trainingCourse(rand: () => number, count: number, dot: boolean): Hoop[] {
     const out: Hoop[] = [];
-    let Z = 380;
+    let Z = dot ? 380 : 520;
     for (let i = 0; i < count; i++) {
-      const X = (rand() - 0.5) * 500;
-      if (dot) {
+      const X = Math.sin(i * 0.9) * (dot ? 120 : 220) + (rand() - 0.5) * 60;
+      const last = dot && i === count - 1;
+      if (dot && !last) {
         out.push({ X, Z: Z + rand() * 60, h: groundAt(X, Z), r: Math.max(24, 40 - i * 0.3), passed: false, dot: true });
         Z += 300 + Math.min(i, 25) * 14;   // further apart, up to about 650 m
+      } else if (last) {
+        // The end of the dots is a big ring to fly through, not a dot.
+        out.push({ X, Z, h: groundAt(X, Z) + 50, r: 60, passed: false });
       } else {
-        out.push({ X, Z: Z + rand() * 60, h: groundAt(X, Z) + 25 + rand() * 30, r: 10, passed: false, yaw: 0 });
-        Z += 200;
+        const r = Math.max(12, 70 - i * 3);
+        out.push({ X, Z, h: groundAt(X, Z) + 60 + rand() * 50, r, passed: false });
+        Z += 260;
       }
+    }
+    // Each ring faces the next one, so the course reads as a path through the air.
+    for (let i = 0; i < out.length; i++) {
+      const a = out[i], b = out[Math.min(i + 1, out.length - 1)];
+      const prev = out[Math.max(i - 1, 0)];
+      const dx = i + 1 < out.length ? b.X - a.X : a.X - prev.X, dz = i + 1 < out.length ? b.Z - a.Z : a.Z - prev.Z;
+      if (!a.dot) a.yaw = Math.atan2(dx, dz || 1);
     }
     return out;
   }
