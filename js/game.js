@@ -552,19 +552,45 @@ var PA;
         windy: { name: 'Windy', cover: 0.5, wind: 3, storm: 0, rain: false, thunder: false, dust: false, weight: 1 },
         dust: { name: 'Dust storm', cover: 0.2, wind: 2, storm: 0.4, rain: false, thunder: false, dust: true, weight: 0.5 },
     };
-    // The weather for a flight, from its seed: different in each mission, and mostly fair.
+    PA.CLIMATES = {
+        temperate: { name: 'Temperate', weights: { clear: 3, scattered: 3, overcast: 1, rain: 1, thunder: 0.4, windy: 1, dust: 0.1 } },
+        dry: { name: 'Dry', weights: { clear: 5, scattered: 1.5, overcast: 0.2, rain: 0.05, thunder: 0.2, windy: 1, dust: 1.5 } },
+        wet: { name: 'Wet', weights: { clear: 0.8, scattered: 2, overcast: 2.5, rain: 2.2, thunder: 1.2, windy: 0.8, dust: 0 } },
+        stormy: { name: 'Stormy', weights: { clear: 0.8, scattered: 1.5, overcast: 1.5, rain: 1.5, thunder: 2.5, windy: 2, dust: 0.3 } },
+    };
+    // A number from 0 up to 1 that is the same for the same seed and different for each k.
+    function fracOf(seed, k) {
+        const x = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453;
+        return x - Math.floor(x);
+    }
+    PA.fracOf = fracOf;
+    function climateFor(seed) {
+        const keys = Object.keys(PA.CLIMATES);
+        return keys[Math.floor(fracOf(seed, 1) * keys.length)];
+    }
+    PA.climateFor = climateFor;
+    // The weather for a flight, from its map's climate: different from one flight to the next.
     function weatherFor(seed) {
-        const keys = Object.keys(PA.WEATHER);
-        const total = keys.reduce((s, k) => s + PA.WEATHER[k].weight, 0);
-        let r = (((seed * 2654435761) >>> 0) % 100000) / 100000 * total;
+        const w = PA.CLIMATES[climateFor(seed)].weights;
+        const keys = Object.keys(w);
+        const total = keys.reduce((s, k) => s + w[k], 0);
+        let r = fracOf(seed, 2) * total;
         for (const k of keys) {
-            r -= PA.WEATHER[k].weight;
+            r -= w[k];
             if (r < 0)
                 return k;
         }
         return 'clear';
     }
     PA.weatherFor = weatherFor;
+    // The wind on a map: a random direction, and a speed of 1.5 to 4 m/s. The clouds drift with it,
+    // and so do the smoke, the dust and the flags. A storm's wind is already multiplied by its weather.
+    function windFor(seed) {
+        const a = fracOf(seed, 3) * Math.PI * 2;
+        const speed = 1.5 + fracOf(seed, 4) * 2.5;
+        return [Math.sin(a) * speed, Math.cos(a) * speed];
+    }
+    PA.windFor = windFor;
     PA.CLOUD_LAYERS = [
         { base: 520, cell: 30, n: 200, scale: PA.CLOUD_SCALE, seed: 0, coverBase: PA.CLOUD_COVER, coverMul: 1, alpha: 1, fadeFrom: 1200 }, // low: cumulus
         { base: 1700, cell: 60, n: 100, scale: 520, seed: 37, coverBase: 0.3, coverMul: 0.8, alpha: 0.7, fadeFrom: 3000 }, // middle: altocumulus
@@ -573,8 +599,8 @@ var PA;
     // The cloud density of one layer at ground position (X, Z) at time t (seconds): 0 is clear, 1 is
     // cloud. Three octaves of value noise, drifting with the wind. The threshold moves with the cover,
     // so more cover means more of the noise is cloud. The ramp is soft, so the edges are soft.
-    function cloudDensityLayer(X, Z, t, weatherCover, windScale, layer) {
-        const u = (X - PA.WIND.X * windScale * t) / layer.scale + layer.seed, v = (Z - PA.WIND.Z * windScale * t) / layer.scale + layer.seed * 0.7;
+    function cloudDensityLayer(X, Z, t, weatherCover, windScale, layer, wind = [PA.WIND.X, PA.WIND.Z]) {
+        const u = (X - wind[0] * windScale * t) / layer.scale + layer.seed, v = (Z - wind[1] * windScale * t) / layer.scale + layer.seed * 0.7;
         const f = PA.noise2(u, v) * 0.55 + PA.noise2(u * 2.1 + 5.2, v * 2.1 + 1.3) * 0.3 + PA.noise2(u * 4.3 + 9.1, v * 4.3 + 7.7) * 0.15;
         const cover = layer.coverBase + (weatherCover - PA.CLOUD_COVER) * layer.coverMul;
         const th = 0.52 - (cover - PA.CLOUD_COVER) * 0.45;
@@ -2254,6 +2280,8 @@ var PA;
             this.throttleSet = CRUISE_THROTTLE; // the throttle lever, used when the flight helper is off
             this.clock = PA.START_HOUR; // the solar clock, hours from midnight: each mission starts at its own time
             this.weather = 'clear'; // this flight's weather (light.ts WEATHER)
+            this.climate = 'temperate'; // this map's climate (light.ts CLIMATES)
+            this.wind = [PA.WIND.X, PA.WIND.Z]; // this map's wind, metres per second
             this.flashT = 0; // seconds of lightning flash left
             this.thunderIn = 8; // seconds until the next strike
             this.boomIn = 0; // seconds until its thunder is heard
@@ -2275,6 +2303,8 @@ var PA;
             this.missionSpec = PA.missionFor(this.missionNumber);
             this.clock = this.missionSpec.sunStart;
             this.weather = PA.weatherFor(seed);
+            this.climate = PA.climateFor(seed);
+            this.wind = PA.windFor(seed);
             this.mission = PA.makeMission(this.settings.mode, seed, this.missionSpec);
             this.rand = PA.random(seed + 7);
             this.plane = this.settings.mode === 'drone' ? new PA.Drone(this.settings.droneKind || 'camera') : new PA.Aircraft(this.settings.mode === 'jet');
@@ -3512,7 +3542,7 @@ var PA;
             if (PA.WEATHER[this.weather].dust || this.weather === 'windy') {
                 for (let i = 0; i < 4; i++) {
                     const a = this.rand() * Math.PI * 2, sp = 2 + this.rand() * 4;
-                    this.puffs.push({ X, h, Z, vX: Math.cos(a) * sp + PA.WIND.X, vY: 1 + this.rand() * 3, vZ: Math.sin(a) * sp + PA.WIND.Z,
+                    this.puffs.push({ X, h, Z, vX: Math.cos(a) * sp + this.wind[0], vY: 1 + this.rand() * 3, vZ: Math.sin(a) * sp + this.wind[1],
                         life: 1.2 + this.rand() * 0.8, max: 2, color: '#d8c49a', size: 4 + this.rand() * 4, kind: 'dust' });
                 }
             }
@@ -3572,7 +3602,7 @@ var PA;
                     const shade = Math.round(g * 255).toString(16).padStart(2, '0');
                     this.puffs.push({
                         X: w.X + (this.rand() - 0.5) * 3, Z: w.Z + (this.rand() - 0.5) * 3, h: 1.5,
-                        vX: PA.WIND.X * 0.5, vY: 3 + this.rand() * 2, vZ: PA.WIND.Z * 0.5,
+                        vX: this.wind[0] * 0.5, vY: 3 + this.rand() * 2, vZ: this.wind[1] * 0.5,
                         life: 5, max: 5, color: '#' + shade + shade + shade, size: (2.2 + this.rand()) * w.size, kind: 'smoke',
                     });
                 }
@@ -3591,8 +3621,8 @@ var PA;
                 if (p.kind === 'smoke') {
                     p.vY += 1.5 * dt;
                     const drag = Math.max(0, 1 - 1.5 * dt);
-                    p.vX = PA.WIND.X + (p.vX - PA.WIND.X) * drag;
-                    p.vZ = PA.WIND.Z + (p.vZ - PA.WIND.Z) * drag;
+                    p.vX = this.wind[0] + (p.vX - this.wind[0]) * drag;
+                    p.vZ = this.wind[1] + (p.vZ - this.wind[1]) * drag;
                 }
                 else if (p.kind === 'fire') {
                     const drag = Math.max(0, 1 - 3 * dt);
@@ -3656,6 +3686,7 @@ var PA;
     let shadowsOn = true;
     let tintTint = [1, 1, 1];
     let WX = PA.WEATHER.clear; // this flight's weather
+    let WINDV = [PA.WIND.X, PA.WIND.Z]; // this map's wind
     let tintKey = '';
     let tintSet = {};
     const tintSets = new Map();
@@ -3689,6 +3720,7 @@ var PA;
         var _a;
         const base = g.light;
         WX = PA.WEATHER[g.weather];
+        WINDV = g.wind;
         // Weather: a storm dims the sun and the sky light, and dust turns the haze brown.
         const storm = WX.storm, dust = WX.dust ? 0.75 : 0;
         const horizon = base.horizon.map((v, k) => v + ([205, 170, 120][k] - v) * dust);
@@ -4338,7 +4370,7 @@ var PA;
     const cgX0 = PA.CLOUD_LAYERS.map(() => 0), cgZ0 = PA.CLOUD_LAYERS.map(() => 0);
     let cgT = -1e9, cgKey = '';
     function updateClouds(t, camX, camZ) {
-        const key = WX.cover + ',' + WX.wind;
+        const key = WX.cover + ',' + WX.wind + ',' + WINDV[0].toFixed(2) + ',' + WINDV[1].toFixed(2);
         let needs = t !== cgT && Math.abs(t - cgT) >= 0.4 || key !== cgKey;
         PA.CLOUD_LAYERS.forEach((l, li) => {
             const half = (l.n * l.cell) / 2;
@@ -4354,7 +4386,7 @@ var PA;
             const grid = cloudGrids[li];
             for (let j = 0; j < l.n; j++) {
                 for (let i = 0; i < l.n; i++) {
-                    grid[j * l.n + i] = PA.cloudDensityLayer(cgX0[li] + i * l.cell, cgZ0[li] + j * l.cell, t, WX.cover, WX.wind, l);
+                    grid[j * l.n + i] = PA.cloudDensityLayer(cgX0[li] + i * l.cell, cgZ0[li] + j * l.cell, t, WX.cover, WX.wind, l, WINDV);
                 }
             }
         });
@@ -4607,7 +4639,7 @@ var PA;
             }
             else if (th.name === 'farm' || th.name === 'house1' || th.name === 'house2') {
                 const [hx, hy] = PA.modelToScreen(m, pose, 12, 5, 13);
-                chimneySmoke(ctx, hx, hy, pose.px, time + th.phase, alpha, (PA.WIND.X * c.rx + PA.WIND.Z * c.rz) / Math.hypot(PA.WIND.X, PA.WIND.Z));
+                chimneySmoke(ctx, hx, hy, pose.px, time + th.phase, alpha, (WINDV[0] * c.rx + WINDV[1] * c.rz) / Math.hypot(WINDV[0], WINDV[1]));
             }
             else if (th.name === 'windmill') {
                 const [wx, wy] = PA.modelToScreen(m, pose, 5, 2, 19);
@@ -4670,8 +4702,8 @@ var PA;
     }
     // A flag streaming out with the wind: two bands that ripple in a travelling wave.
     function flag(ctx, c, x, y, px, t, roll) {
-        const wind = Math.hypot(PA.WIND.X, PA.WIND.Z);
-        const side = (PA.WIND.X * c.rx + PA.WIND.Z * c.rz) / wind; // how much the wind blows across the screen
+        const wind = Math.hypot(WINDV[0], WINDV[1]);
+        const side = (WINDV[0] * c.rx + WINDV[1] * c.rz) / wind; // how much the wind blows across the screen
         const dir = side >= 0 ? 1 : -1;
         const L = 13 * px * Math.max(0.3, Math.abs(side));
         const Hh = 8 * px;

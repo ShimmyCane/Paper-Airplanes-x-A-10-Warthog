@@ -157,3 +157,10 @@ A browser 2.5D pixel-art flight game, built small enough to read, so Jimmy can s
 - Clouds: three layers (`CLOUD_LAYERS` in `light.ts`): low cumulus at 520 m, middle altocumulus at 1700 m, thin high cirrus at 4300 m. Each has its own noise seed, cover (moved by the weather) and fade distance. Each layer is seen from above (bright top) and below (grey underside), and the ground under a deck is covered from above.
 - Checks: all flight and rule checks pass; browser: clouds seen from the ground, from above, and from below.
 - Not verified: the middle and high layers are faint; the low deck is soft rather than cumulus-shaped. Likely next: stronger shapes, and the iPad frame rate with three grids.
+
+## Round 21 (0.28): climates and wind per map
+
+- Each map has a climate (`CLIMATES` in `light.ts`: temperate, dry, wet, stormy), picked from its seed. The weather of each flight is drawn from that climate's table, so storms, dust and rain differ from map to map.
+- Each map has its own wind (`windFor`): a random direction and 1.5–4 m/s. It drives the cloud drift, the smoke, the dust and the flags.
+- Checks: all flight and rule checks pass, including the climate shares over 3000 maps and the per-flight wind.
+- Not verified: how the climates feel to play; the iPad frame rate.

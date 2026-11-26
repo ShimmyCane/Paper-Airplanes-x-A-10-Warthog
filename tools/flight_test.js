@@ -819,5 +819,23 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   })());
 }
 
+// 46. Climates and wind: each map has its own climate and wind, so the weather is not the same everywhere.
+{
+  const seeds = Array.from({ length: 3000 }, (_, k) => k * 7 + 3);
+  const share = (cl, w) => seeds.filter(sd => PA.climateFor(sd) === cl && PA.weatherFor(sd) === w).length / Math.max(1, seeds.filter(sd => PA.climateFor(sd) === cl).length);
+  check('climate: every climate is picked by some maps', Object.keys(PA.CLIMATES).every(k => seeds.some(sd => PA.climateFor(sd) === k)));
+  check('climate: a stormy map has more thunder than a dry one', share('stormy', 'thunder') > share('dry', 'thunder') + 0.05, 'stormy ' + share('stormy', 'thunder').toFixed(2) + ', dry ' + share('dry', 'thunder').toFixed(2));
+  check('climate: a dry map has more clear days than a wet one', share('dry', 'clear') > share('wet', 'clear') + 0.2);
+  const winds = seeds.slice(0, 200).map(sd => PA.windFor(sd));
+  const speeds = winds.map(w => Math.hypot(w[0], w[1]));
+  check('wind: each map has its own wind, 1.5 to 4 m/s, in a random direction', speeds.every(v => v >= 1.5 - 1e-6 && v <= 4 + 1e-6) && new Set(winds.map(w => Math.round(Math.atan2(w[1], w[0]) * 10))).size > 20, 'speeds ' + Math.min(...speeds).toFixed(2) + ' to ' + Math.max(...speeds).toFixed(2));
+  check('wind: the same map always has the same wind', PA.windFor(42)[0] === PA.windFor(42)[0] && PA.windFor(42)[1] === PA.windFor(42)[1]);
+  const st = { mode: 'jet', control: 'drag', view: 'chase', difficulty: 'normal', sound: 0, forces: 0, showErrors: 0, safeFlight: 0, invincible: 1, autoReload: 1, volMusic: 0, volGun: 0, volTurn: 0, volWarn: 0, enemyWave: 0, allies: 0 };
+  const g = new PA.Game(st);
+  g.onSound = () => {};
+  g.missionNumber = 5; g.newFlight(77);
+  check('map: a flight carries its own climate and wind', g.climate === PA.climateFor(g.seed) && g.wind[0] === PA.windFor(g.seed)[0]);
+}
+
 console.log(failures === 0 ? '\nAll flight checks passed.' : '\n' + failures + ' check(s) failed.');
 process.exit(failures ? 1 : 0);

@@ -124,3 +124,9 @@
 - **The same deck looks wrong from both sides.** Seen from above, the top is bright and sun-lit; seen from below, the underside is in its own shade. Give each side its own colour rule, and pick the side from the camera's height relative to the layer.
 - **Three layers need three grids, with the cost kept in check.** The low deck keeps 30 m cells; the middle and high layers use coarser cells (60 m, 120 m) and fewer of them. Recomputing all three together every 0.4 s stays within a frame budget.
 - **Check the sky from a tilted camera.** The default views (horizon, straight down) hide the underside. A nose-up shot showed the underside; a shot from above showed the top.
+
+## 2026-11-26 (round 21, climates and wind per map)
+
+- **Random per map, not one fixed setting.** Climate, weather mix and wind come from the map's seed, so two maps differ, and the same map repeats. Pick a climate first, then draw the weather from that climate's table; a fixed global table hid the difference between maps.
+- **Wind is state, not a constant.** A fixed wind vector was read in five places (clouds, smoke, dust, flags, puffs). Store it on the flight and pass it down; a test checks the flight carries its own.
+- **Check that the random outcomes really differ.** The climate tests compare shares over thousands of seeds (stormy has more thunder than dry), not a single map.

@@ -31,6 +31,7 @@ namespace PA {
   let shadowsOn = true;
   let tintTint: RGB = [1, 1, 1];
   let WX = WEATHER.clear;     // this flight's weather
+  let WINDV: [number, number] = [WIND.X, WIND.Z];   // this map's wind
   let tintKey = '';
   let tintSet: { [name: string]: Model } = {};
   const tintSets = new Map<string, { [name: string]: Model }>();
@@ -62,6 +63,7 @@ namespace PA {
   function setLight(g: Game): void {
     const base = g.light;
     WX = WEATHER[g.weather];
+    WINDV = g.wind;
     // Weather: a storm dims the sun and the sky light, and dust turns the haze brown.
     const storm = WX.storm, dust = WX.dust ? 0.75 : 0;
     const horizon = base.horizon.map((v, k) => v + ([205, 170, 120][k] - v) * dust) as RGB;
@@ -524,7 +526,7 @@ namespace PA {
   let cgT = -1e9, cgKey = '';
 
   function updateClouds(t: number, camX: number, camZ: number): void {
-    const key = WX.cover + ',' + WX.wind;
+    const key = WX.cover + ',' + WX.wind + ',' + WINDV[0].toFixed(2) + ',' + WINDV[1].toFixed(2);
     let needs = t !== cgT && Math.abs(t - cgT) >= 0.4 || key !== cgKey;
     CLOUD_LAYERS.forEach((l, li) => {
       const half = (l.n * l.cell) / 2;
@@ -538,7 +540,7 @@ namespace PA {
       const grid = cloudGrids[li];
       for (let j = 0; j < l.n; j++) {
         for (let i = 0; i < l.n; i++) {
-          grid[j * l.n + i] = cloudDensityLayer(cgX0[li] + i * l.cell, cgZ0[li] + j * l.cell, t, WX.cover, WX.wind, l);
+          grid[j * l.n + i] = cloudDensityLayer(cgX0[li] + i * l.cell, cgZ0[li] + j * l.cell, t, WX.cover, WX.wind, l, WINDV);
         }
       }
     });
@@ -779,7 +781,7 @@ namespace PA {
         drawModel(ctx, litModel('samdish'), { ...pose, sx: dx, sy: dy, yaw: time * 2.2 + th.phase - c.yaw });
       } else if (th.name === 'farm' || th.name === 'house1' || th.name === 'house2') {
         const [hx, hy] = modelToScreen(m, pose, 12, 5, 13);
-        chimneySmoke(ctx, hx, hy, pose.px, time + th.phase, alpha, (WIND.X * c.rx + WIND.Z * c.rz) / Math.hypot(WIND.X, WIND.Z));
+        chimneySmoke(ctx, hx, hy, pose.px, time + th.phase, alpha, (WINDV[0] * c.rx + WINDV[1] * c.rz) / Math.hypot(WINDV[0], WINDV[1]));
       } else if (th.name === 'windmill') {
         const [wx, wy] = modelToScreen(m, pose, 5, 2, 19);
         sails(ctx, wx, wy, pose.px, time * 1.4 + th.phase, pose.roll, alpha);
@@ -838,8 +840,8 @@ namespace PA {
 
   // A flag streaming out with the wind: two bands that ripple in a travelling wave.
   function flag(ctx: CanvasRenderingContext2D, c: Cam, x: number, y: number, px: number, t: number, roll: number): void {
-    const wind = Math.hypot(WIND.X, WIND.Z);
-    const side = (WIND.X * c.rx + WIND.Z * c.rz) / wind;      // how much the wind blows across the screen
+    const wind = Math.hypot(WINDV[0], WINDV[1]);
+    const side = (WINDV[0] * c.rx + WINDV[1] * c.rz) / wind;      // how much the wind blows across the screen
     const dir = side >= 0 ? 1 : -1;
     const L = 13 * px * Math.max(0.3, Math.abs(side));
     const Hh = 8 * px;
