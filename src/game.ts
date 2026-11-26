@@ -266,6 +266,8 @@ namespace PA {
     throttleSet = CRUISE_THROTTLE;   // the throttle lever, used when the flight helper is off
     clock = START_HOUR;              // the solar clock, hours from midnight: each mission starts at its own time
     weather: Weather = 'clear';      // this flight's weather (light.ts WEATHER)
+    climate = 'temperate';           // this map's climate (light.ts CLIMATES)
+    wind: [number, number] = [WIND.X, WIND.Z];   // this map's wind, metres per second
     flashT = 0;                      // seconds of lightning flash left
     private thunderIn = 8;           // seconds until the next strike
     private boomIn = 0;              // seconds until its thunder is heard
@@ -291,6 +293,8 @@ namespace PA {
       this.missionSpec = missionFor(this.missionNumber);
       this.clock = this.missionSpec.sunStart;
       this.weather = weatherFor(seed);
+      this.climate = climateFor(seed);
+      this.wind = windFor(seed);
       this.mission = makeMission(this.settings.mode, seed, this.missionSpec);
       this.rand = random(seed + 7);
       this.plane = this.settings.mode === 'drone' ? new Drone(this.settings.droneKind || 'camera') : new Aircraft(this.settings.mode === 'jet');
@@ -1466,7 +1470,7 @@ namespace PA {
       if (WEATHER[this.weather].dust || this.weather === 'windy') {
         for (let i = 0; i < 4; i++) {
           const a = this.rand() * Math.PI * 2, sp = 2 + this.rand() * 4;
-          this.puffs.push({ X, h, Z, vX: Math.cos(a) * sp + WIND.X, vY: 1 + this.rand() * 3, vZ: Math.sin(a) * sp + WIND.Z,
+          this.puffs.push({ X, h, Z, vX: Math.cos(a) * sp + this.wind[0], vY: 1 + this.rand() * 3, vZ: Math.sin(a) * sp + this.wind[1],
             life: 1.2 + this.rand() * 0.8, max: 2, color: '#d8c49a', size: 4 + this.rand() * 4, kind: 'dust' });
         }
       }
@@ -1526,7 +1530,7 @@ namespace PA {
           const shade = Math.round(g * 255).toString(16).padStart(2, '0');
           this.puffs.push({
             X: w.X + (this.rand() - 0.5) * 3, Z: w.Z + (this.rand() - 0.5) * 3, h: 1.5,
-            vX: WIND.X * 0.5, vY: 3 + this.rand() * 2, vZ: WIND.Z * 0.5,
+            vX: this.wind[0] * 0.5, vY: 3 + this.rand() * 2, vZ: this.wind[1] * 0.5,
             life: 5, max: 5, color: '#' + shade + shade + shade, size: (2.2 + this.rand()) * w.size, kind: 'smoke',
           });
         }
@@ -1546,7 +1550,7 @@ namespace PA {
         if (p.kind === 'smoke') {
           p.vY += 1.5 * dt;
           const drag = Math.max(0, 1 - 1.5 * dt);
-          p.vX = WIND.X + (p.vX - WIND.X) * drag; p.vZ = WIND.Z + (p.vZ - WIND.Z) * drag;
+          p.vX = this.wind[0] + (p.vX - this.wind[0]) * drag; p.vZ = this.wind[1] + (p.vZ - this.wind[1]) * drag;
         } else if (p.kind === 'fire') {
           const drag = Math.max(0, 1 - 3 * dt);
           p.vX *= drag; p.vZ *= drag; p.vY *= drag;

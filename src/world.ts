@@ -379,14 +379,15 @@ namespace PA {
       const last = dot && i === count - 1;
       if (dot && !last) {
         out.push({ X, Z: Z + rand() * 60, h: groundAt(X, Z), r: Math.max(24, 40 - i * 0.3), passed: false, dot: true });
-        Z += 300 + Math.min(i, 25) * 14;   // further apart, up to about 650 m
+        Z += 420 + Math.min(i, 25) * 18;   // further apart, up to about 870 m
       } else if (last) {
         // The end of the dots is a big ring to fly through, not a dot.
         out.push({ X, Z, h: groundAt(X, Z) + 50, r: 60, passed: false });
       } else {
         const r = Math.max(12, 70 - i * 3);
-        out.push({ X, Z, h: groundAt(X, Z) + 60 + rand() * 50, r, passed: false });
-        Z += 260;
+        // Up high: at least 200 m above where the 60–110 m rings used to be.
+        out.push({ X, Z, h: groundAt(X, Z) + 260 + rand() * 50, r, passed: false });
+        Z += 420;
       }
     }
     // Each ring faces the next one, so the course reads as a path through the air.

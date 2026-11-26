@@ -117,27 +117,69 @@ namespace PA {
     windy:     { name: 'Windy', cover: 0.5, wind: 3, storm: 0, rain: false, thunder: false, dust: false, weight: 1 },
     dust:      { name: 'Dust storm', cover: 0.2, wind: 2, storm: 0.4, rain: false, thunder: false, dust: true, weight: 0.5 },
   };
-  // The weather for a flight, from its seed: different in each mission, and mostly fair.
+  // A climate is the map's character: how often each kind of weather comes. It is picked per map
+  // from its seed, so a map is not fixed to one climate, and two maps can be very different.
+  export interface Climate { name: string; weights: { [k in Weather]: number } }
+  export const CLIMATES: { [k: string]: Climate } = {
+    temperate: { name: 'Temperate', weights: { clear: 3, scattered: 3, overcast: 1, rain: 1, thunder: 0.4, windy: 1, dust: 0.1 } },
+    dry:       { name: 'Dry', weights: { clear: 5, scattered: 1.5, overcast: 0.2, rain: 0.05, thunder: 0.2, windy: 1, dust: 1.5 } },
+    wet:       { name: 'Wet', weights: { clear: 0.8, scattered: 2, overcast: 2.5, rain: 2.2, thunder: 1.2, windy: 0.8, dust: 0 } },
+    stormy:    { name: 'Stormy', weights: { clear: 0.8, scattered: 1.5, overcast: 1.5, rain: 1.5, thunder: 2.5, windy: 2, dust: 0.3 } },
+  };
+  // A number from 0 up to 1 that is the same for the same seed and different for each k.
+  export function fracOf(seed: number, k: number): number {
+    const x = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  }
+  export function climateFor(seed: number): string {
+    const keys = Object.keys(CLIMATES);
+    return keys[Math.floor(fracOf(seed, 1) * keys.length)];
+  }
+  // The weather for a flight, from its map's climate: different from one flight to the next.
   export function weatherFor(seed: number): Weather {
-    const keys = Object.keys(WEATHER) as Weather[];
-    const total = keys.reduce((s, k) => s + WEATHER[k].weight, 0);
-    let r = (((seed * 2654435761) >>> 0) % 100000) / 100000 * total;
+    const w = CLIMATES[climateFor(seed)].weights;
+    const keys = Object.keys(w) as Weather[];
+    const total = keys.reduce((s, k) => s + w[k], 0);
+    let r = fracOf(seed, 2) * total;
     for (const k of keys) {
-      r -= WEATHER[k].weight;
+      r -= w[k];
       if (r < 0) return k;
     }
     return 'clear';
   }
+  // The wind on a map: a random direction, and a speed of 1.5 to 4 m/s. The clouds drift with it,
+  // and so do the smoke, the dust and the flags. A storm's wind is already multiplied by its weather.
+  export function windFor(seed: number): [number, number] {
+    const a = fracOf(seed, 3) * Math.PI * 2;
+    const speed = 1.5 + fracOf(seed, 4) * 2.5;
+    return [Math.sin(a) * speed, Math.cos(a) * speed];
+  }
 
-  // The cloud density at ground position (X, Z) at time t (seconds): 0 is clear, 1 is cloud.
-  // Three octaves of value noise, drifting with the wind. The threshold moves with the cover, so
-  // more cover means more of the noise is cloud. The ramp is soft, so the edges are soft.
-  export function cloudDensity(X: number, Z: number, t: number, cover = CLOUD_COVER, windScale = 1): number {
-    const u = (X - WIND.X * windScale * t) / CLOUD_SCALE, v = (Z - WIND.Z * windScale * t) / CLOUD_SCALE;
+  // The cloud layers, from the ground up. Each has its own height, its own noise (seed), its own
+  // cover (coverBase at the default weather, moved by the weather with coverMul), how strong its
+  // shadow and its colour are (alpha), and how far off it starts to fade (fadeFrom, metres).
+  export interface CloudLayer { base: number; cell: number; n: number; scale: number; seed: number; coverBase: number; coverMul: number; alpha: number; fadeFrom: number }
+  export const CLOUD_LAYERS: CloudLayer[] = [
+    { base: 520, cell: 30, n: 200, scale: CLOUD_SCALE, seed: 0, coverBase: CLOUD_COVER, coverMul: 1, alpha: 1, fadeFrom: 1200 },        // low: cumulus
+    { base: 1700, cell: 60, n: 100, scale: 520, seed: 37, coverBase: 0.3, coverMul: 0.8, alpha: 0.7, fadeFrom: 3000 },                  // middle: altocumulus
+    { base: 4300, cell: 120, n: 100, scale: 700, seed: 71, coverBase: 0.3, coverMul: 0.3, alpha: 0.45, fadeFrom: 6000 },                // high: thin cirrus
+  ];
+
+  // The cloud density of one layer at ground position (X, Z) at time t (seconds): 0 is clear, 1 is
+  // cloud. Three octaves of value noise, drifting with the wind. The threshold moves with the cover,
+  // so more cover means more of the noise is cloud. The ramp is soft, so the edges are soft.
+  export function cloudDensityLayer(X: number, Z: number, t: number, weatherCover: number, windScale: number, layer: CloudLayer, wind: [number, number] = [WIND.X, WIND.Z]): number {
+    const u = (X - wind[0] * windScale * t) / layer.scale + layer.seed, v = (Z - wind[1] * windScale * t) / layer.scale + layer.seed * 0.7;
     const f = noise2(u, v) * 0.55 + noise2(u * 2.1 + 5.2, v * 2.1 + 1.3) * 0.3 + noise2(u * 4.3 + 9.1, v * 4.3 + 7.7) * 0.15;
+    const cover = layer.coverBase + (weatherCover - CLOUD_COVER) * layer.coverMul;
     const th = 0.52 - (cover - CLOUD_COVER) * 0.45;
     const x = (f - th) * 6;
     return x <= 0 ? 0 : x >= 1 ? 1 : x;
+  }
+
+  // The low deck's density (the first layer), as before.
+  export function cloudDensity(X: number, Z: number, t: number, cover = CLOUD_COVER, windScale = 1): number {
+    return cloudDensityLayer(X, Z, t, cover, windScale, CLOUD_LAYERS[0]);
   }
 
   // The object tint: how much of the sun's colour and the sky's light reaches things on the ground,
