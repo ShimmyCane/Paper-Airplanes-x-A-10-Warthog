@@ -372,7 +372,7 @@ var PA;
             const last = dot && i === count - 1;
             if (dot && !last) {
                 out.push({ X, Z: Z + rand() * 60, h: groundAt(X, Z), r: Math.max(24, 40 - i * 0.3), passed: false, dot: true });
-                Z += 300 + Math.min(i, 25) * 14; // further apart, up to about 650 m
+                Z += 420 + Math.min(i, 25) * 18; // further apart, up to about 870 m
             }
             else if (last) {
                 // The end of the dots is a big ring to fly through, not a dot.
@@ -380,8 +380,9 @@ var PA;
             }
             else {
                 const r = Math.max(12, 70 - i * 3);
-                out.push({ X, Z, h: groundAt(X, Z) + 60 + rand() * 50, r, passed: false });
-                Z += 260;
+                // Up high: at least 200 m above where the 60–110 m rings used to be.
+                out.push({ X, Z, h: groundAt(X, Z) + 260 + rand() * 50, r, passed: false });
+                Z += 420;
             }
         }
         // Each ring faces the next one, so the course reads as a path through the air.
@@ -564,15 +565,26 @@ var PA;
         return 'clear';
     }
     PA.weatherFor = weatherFor;
-    // The cloud density at ground position (X, Z) at time t (seconds): 0 is clear, 1 is cloud.
-    // Three octaves of value noise, drifting with the wind. The threshold moves with the cover, so
-    // more cover means more of the noise is cloud. The ramp is soft, so the edges are soft.
-    function cloudDensity(X, Z, t, cover = PA.CLOUD_COVER, windScale = 1) {
-        const u = (X - PA.WIND.X * windScale * t) / PA.CLOUD_SCALE, v = (Z - PA.WIND.Z * windScale * t) / PA.CLOUD_SCALE;
+    PA.CLOUD_LAYERS = [
+        { base: 520, cell: 30, n: 200, scale: PA.CLOUD_SCALE, seed: 0, coverBase: PA.CLOUD_COVER, coverMul: 1, alpha: 1, fadeFrom: 1200 }, // low: cumulus
+        { base: 1700, cell: 60, n: 100, scale: 520, seed: 37, coverBase: 0.3, coverMul: 0.8, alpha: 0.7, fadeFrom: 3000 }, // middle: altocumulus
+        { base: 4300, cell: 120, n: 100, scale: 700, seed: 71, coverBase: 0.3, coverMul: 0.3, alpha: 0.45, fadeFrom: 6000 }, // high: thin cirrus
+    ];
+    // The cloud density of one layer at ground position (X, Z) at time t (seconds): 0 is clear, 1 is
+    // cloud. Three octaves of value noise, drifting with the wind. The threshold moves with the cover,
+    // so more cover means more of the noise is cloud. The ramp is soft, so the edges are soft.
+    function cloudDensityLayer(X, Z, t, weatherCover, windScale, layer) {
+        const u = (X - PA.WIND.X * windScale * t) / layer.scale + layer.seed, v = (Z - PA.WIND.Z * windScale * t) / layer.scale + layer.seed * 0.7;
         const f = PA.noise2(u, v) * 0.55 + PA.noise2(u * 2.1 + 5.2, v * 2.1 + 1.3) * 0.3 + PA.noise2(u * 4.3 + 9.1, v * 4.3 + 7.7) * 0.15;
+        const cover = layer.coverBase + (weatherCover - PA.CLOUD_COVER) * layer.coverMul;
         const th = 0.52 - (cover - PA.CLOUD_COVER) * 0.45;
         const x = (f - th) * 6;
         return x <= 0 ? 0 : x >= 1 ? 1 : x;
+    }
+    PA.cloudDensityLayer = cloudDensityLayer;
+    // The low deck's density (the first layer), as before.
+    function cloudDensity(X, Z, t, cover = PA.CLOUD_COVER, windScale = 1) {
+        return cloudDensityLayer(X, Z, t, cover, windScale, PA.CLOUD_LAYERS[0]);
     }
     PA.cloudDensity = cloudDensity;
     // The object tint: how much of the sun's colour and the sky's light reaches things on the ground,
@@ -4233,6 +4245,9 @@ var PA;
                         continue;
                     }
                     col = groundColor(c.px + tt * dx, c.pz + tt * dz, dist, dx / len, dy / len, dz / len, t);
+                    // From above a deck, the cloud lies between the camera and the ground: draw it over the land.
+                    if (c.py > PA.CLOUD_LAYERS[0].base)
+                        col = skyClouds(c.px, c.py, c.pz, dx / len, dy / len, dz / len, col, dist);
                 }
                 else {
                     // The open sky is smooth: work out one pixel in four, except near the horizon and the sun.
@@ -4244,9 +4259,7 @@ var PA;
                     }
                     const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
                     col = skyColor(dx / len, dy / len, dz / len);
-                    const cl = cloudOverSky(c.px, c.py, c.pz, dx / len, dy / len, dz / len);
-                    if (cl)
-                        col = blendPacked(col, cl);
+                    col = skyClouds(c.px, c.py, c.pz, dx / len, dy / len, dz / len, col);
                 }
                 bg32[row + x] = col;
                 prev = col;
@@ -4315,85 +4328,116 @@ var PA;
         silhouettes[name] = cv;
         return cv;
     }
-    // ---- 2. Clouds: one deck over the land, lit by the sun, casting shadows on the ground ----
+    // ---- 2. Clouds: three layers over the land, lit by the sun, casting shadows on the ground ----
     //
-    // The deck's density (light.ts, from Generate Clouds' noise) is sampled on a grid of 30 m cells
-    // round the camera, once every few frames. A sky ray that meets the deck, and a ground point whose
-    // sun ray does, read the grid: a few lookups per pixel, not a noise field.
-    const CG_CELL = 60; // metres per grid cell
-    const CG_N = 200; // cells a side: a 6 km window round the camera
-    const cloudGrid = new Float32Array(CG_N * CG_N);
-    let cgX0 = 0, cgZ0 = 0, cgT = -1e9;
-    let cgCover = -1, cgWind = -1;
+    // Each layer's density (light.ts, from the Generate Clouds noise) is sampled on a grid of cells
+    // round the camera, every few frames. A sky ray that meets a layer, and a ground point whose sun
+    // ray does, read the grid: a few lookups per pixel. A layer seen from above shows its top (bright,
+    // sun-lit); seen from below it shows its underside (greyer, in its own shade).
+    const cloudGrids = PA.CLOUD_LAYERS.map(l => new Float32Array(l.n * l.n));
+    const cgX0 = PA.CLOUD_LAYERS.map(() => 0), cgZ0 = PA.CLOUD_LAYERS.map(() => 0);
+    let cgT = -1e9, cgKey = '';
     function updateClouds(t, camX, camZ) {
-        const half = (CG_N * CG_CELL) / 2;
-        const recentre = Math.abs(camX - cgX0 - half) > 600 || Math.abs(camZ - cgZ0 - half) > 600;
-        if (!recentre && Math.abs(t - cgT) < 0.4 && cgCover === WX.cover && cgWind === WX.wind)
+        const key = WX.cover + ',' + WX.wind;
+        let needs = t !== cgT && Math.abs(t - cgT) >= 0.4 || key !== cgKey;
+        PA.CLOUD_LAYERS.forEach((l, li) => {
+            const half = (l.n * l.cell) / 2;
+            if (Math.abs(camX - cgX0[li] - half) > 600 || Math.abs(camZ - cgZ0[li] - half) > 600)
+                needs = true;
+        });
+        if (!needs)
             return;
-        cgCover = WX.cover;
-        cgWind = WX.wind;
-        cgX0 = Math.round((camX - half) / CG_CELL) * CG_CELL;
-        cgZ0 = Math.round((camZ - half) / CG_CELL) * CG_CELL;
-        for (let j = 0; j < CG_N; j++) {
-            for (let i = 0; i < CG_N; i++) {
-                cloudGrid[j * CG_N + i] = PA.cloudDensity(cgX0 + i * CG_CELL, cgZ0 + j * CG_CELL, t, WX.cover, WX.wind);
+        PA.CLOUD_LAYERS.forEach((l, li) => {
+            const half = (l.n * l.cell) / 2;
+            cgX0[li] = Math.round((camX - half) / l.cell) * l.cell;
+            cgZ0[li] = Math.round((camZ - half) / l.cell) * l.cell;
+            const grid = cloudGrids[li];
+            for (let j = 0; j < l.n; j++) {
+                for (let i = 0; i < l.n; i++) {
+                    grid[j * l.n + i] = PA.cloudDensityLayer(cgX0[li] + i * l.cell, cgZ0[li] + j * l.cell, t, WX.cover, WX.wind, l);
+                }
             }
-        }
+        });
         cgT = t;
+        cgKey = key;
     }
-    // The cloud density at (X, Z): bilinear in the grid, and none outside it.
-    function cloudAt(X, Z) {
-        const fx = (X - cgX0) / CG_CELL, fz = (Z - cgZ0) / CG_CELL;
-        if (fx < 0 || fz < 0 || fx >= CG_N - 1 || fz >= CG_N - 1)
+    // The density of layer li at (X, Z): bilinear in its grid, faded to nothing at the grid's edge.
+    function cloudAt(li, X, Z) {
+        const l = PA.CLOUD_LAYERS[li];
+        const fx = (X - cgX0[li]) / l.cell, fz = (Z - cgZ0[li]) / l.cell;
+        if (fx < 0 || fz < 0 || fx >= l.n - 1 || fz >= l.n - 1)
             return 0;
         const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
-        const k = j * CG_N + i;
-        const a = cloudGrid[k], b = cloudGrid[k + 1], c = cloudGrid[k + CG_N], d = cloudGrid[k + CG_N + 1];
-        // Fade to nothing over the last 900 m of the window, so its edge never shows as a line.
-        const edge = smooth01(Math.min(fx, CG_N - 1 - fx, fz, CG_N - 1 - fz) * CG_CELL / 900);
+        const k = j * l.n + i, g = cloudGrids[li];
+        const a = g[k], b = g[k + 1], c = g[k + l.n], d = g[k + l.n + 1];
+        const edge = smooth01(Math.min(fx, l.n - 1 - fx, fz, l.n - 1 - fz) * l.cell / 900);
         return (a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v) * edge;
     }
-    // The share of the sun's light a cloud takes from ground point (X, Z): the deck on the sun's ray.
+    // The share of the sun's light the low and middle layers take from ground point (X, Z).
     function cloudShadowAt(X, Z) {
         const el = Math.max(2, L.el) * Math.PI / 180;
         const hz = Math.hypot(L.sun[0], L.sun[2]) || 1;
-        const reach = PA.CLOUD_BASE / Math.tan(el);
-        const d = cloudAt(X + (L.sun[0] / hz) * reach, Z + (L.sun[2] / hz) * reach);
-        return Math.min(0.7, d * 0.7);
+        let clear = 1;
+        for (let li = 0; li < 2; li++) {
+            const l = PA.CLOUD_LAYERS[li];
+            const reach = l.base / Math.tan(el);
+            const d = cloudAt(li, X + (L.sun[0] / hz) * reach, Z + (L.sun[2] / hz) * reach);
+            clear *= 1 - Math.min(0.7, d * 0.7) * l.alpha;
+        }
+        return 1 - clear;
     }
-    // The deck seen along a sky ray from the camera: [r, g, b, opacity], or null if the ray misses it.
-    // The cloud is lit by the sun's colour where the sun reaches it (Beer's law, two samples toward the
-    // sun) and takes the sky's ambient colour on its shaded side. It fades into the haze with distance.
-    function cloudOverSky(px, py, pz, dx, dy, dz) {
-        if (Math.abs(dy) < 0.02 || (PA.CLOUD_BASE - py) * dy <= 0)
-            return null;
-        const t = (PA.CLOUD_BASE - py) / dy;
-        const x = px + dx * t, z = pz + dz * t;
-        const d = cloudAt(x, z);
-        if (d <= 0.02)
-            return null;
+    // The colour of a layer's cloud at a point with density d: the top is bright and sun-lit, the
+    // underside is in the deck's own shade, with a little sun at its edges.
+    function cloudColour(li, fromAbove, x, z, d) {
         const hz = Math.hypot(L.sun[0], L.sun[2]) || 1;
-        const d2 = cloudAt(x + (L.sun[0] / hz) * 90, z + (L.sun[2] / hz) * 90);
-        const sunlit = Math.exp(-(d * 0.9 + d2 * 1.4)) * L.direct; // how much sun gets through to this point
-        const far = 1 - smooth01((t - 1200) / 3500);
-        const op = Math.min(0.85, d * 1.1) * far;
-        if (op <= 0.01)
-            return null;
-        // The shaded side takes the sky's ambient colour; the lit side the sun's colour, lifted toward white.
-        const shade = [0, 1, 2].map(k => L.ambient[k] * 255 * 0.9 * (1 - 0.3 * WX.storm));
-        const lit = [0, 1, 2].map(k => (L.sunCol[k] + 255) / 2);
-        return [
-            shade[0] + (lit[0] - shade[0]) * sunlit, shade[1] + (lit[1] - shade[1]) * sunlit, shade[2] + (lit[2] - shade[2]) * sunlit, op
-        ];
+        const d2 = cloudAt(li, x + (L.sun[0] / hz) * 90, z + (L.sun[2] / hz) * 90);
+        const storm = WX.storm;
+        const shade = [0, 1, 2].map(k => L.ambient[k] * 255 * 0.9 * (1 - 0.3 * storm));
+        const lift = [0, 1, 2].map(k => (L.sunCol[k] + 255) / 2);
+        if (fromAbove) {
+            // The top: the sun's colour, lifted toward white, and a little shade where the cloud thins.
+            const bright = (0.72 + 0.28 * L.direct) * (1 - 0.25 * storm);
+            const edge = Math.min(1, d * 2);
+            return [0, 1, 2].map(k => (lift[k] * bright) * edge + shade[k] * (1 - edge));
+        }
+        // The underside: the sun gets through only at the edges.
+        const through = Math.exp(-(d * 2.2 + d2 * 1.4)) * L.direct;
+        return [0, 1, 2].map(k => shade[k] + (lift[k] - shade[k]) * through * 0.45);
+    }
+    // Every cloud layer a sky ray meets, composited from the farthest to the nearest over the sky colour.
+    function skyClouds(px, py, pz, dx, dy, dz, col, maxT = Infinity) {
+        if (Math.abs(dy) < 0.02)
+            return col;
+        const hits = []; // [distance, layer, density]
+        PA.CLOUD_LAYERS.forEach((l, li) => {
+            if ((l.base - py) * dy <= 0)
+                return; // this layer is not in this direction
+            const t = (l.base - py) / dy;
+            if (t >= maxT)
+                return; // behind the ground that is being drawn
+            const d = cloudAt(li, px + dx * t, pz + dz * t);
+            if (d > 0.02)
+                hits.push([t, li, d]);
+        });
+        hits.sort((a, b) => b[0] - a[0]);
+        for (const [t, li, d] of hits) {
+            const l = PA.CLOUD_LAYERS[li];
+            const far = 1 - smooth01((t - l.fadeFrom) / (l.fadeFrom * 2.5));
+            const a = Math.min(0.95, d * 2.2 * l.alpha) * far;
+            if (a <= 0.01)
+                continue;
+            const c = cloudColour(li, py > l.base, px + dx * t, pz + dz * t, d);
+            col = blendPacked(col, c, a);
+        }
+        return col;
     }
     function smooth01(v) {
         const x = Math.max(0, Math.min(1, v));
         return x * x * (3 - 2 * x);
     }
-    function blendPacked(col, cl) {
-        const a = cl[3];
+    function blendPacked(col, c, a) {
         const r0 = col & 255, g0 = (col >>> 8) & 255, b0 = (col >>> 16) & 255;
-        return pack(r0 + (cl[0] - r0) * a, g0 + (cl[1] - g0) * a, b0 + (cl[2] - b0) * a);
+        return pack(r0 + (c[0] - r0) * a, g0 + (c[1] - g0) * a, b0 + (c[2] - b0) * a);
     }
     // Which model a target uses, and which way it faces.
     function modelOf(t) {

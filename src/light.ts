@@ -129,15 +129,31 @@ namespace PA {
     return 'clear';
   }
 
-  // The cloud density at ground position (X, Z) at time t (seconds): 0 is clear, 1 is cloud.
-  // Three octaves of value noise, drifting with the wind. The threshold moves with the cover, so
-  // more cover means more of the noise is cloud. The ramp is soft, so the edges are soft.
-  export function cloudDensity(X: number, Z: number, t: number, cover = CLOUD_COVER, windScale = 1): number {
-    const u = (X - WIND.X * windScale * t) / CLOUD_SCALE, v = (Z - WIND.Z * windScale * t) / CLOUD_SCALE;
+  // The cloud layers, from the ground up. Each has its own height, its own noise (seed), its own
+  // cover (coverBase at the default weather, moved by the weather with coverMul), how strong its
+  // shadow and its colour are (alpha), and how far off it starts to fade (fadeFrom, metres).
+  export interface CloudLayer { base: number; cell: number; n: number; scale: number; seed: number; coverBase: number; coverMul: number; alpha: number; fadeFrom: number }
+  export const CLOUD_LAYERS: CloudLayer[] = [
+    { base: 520, cell: 30, n: 200, scale: CLOUD_SCALE, seed: 0, coverBase: CLOUD_COVER, coverMul: 1, alpha: 1, fadeFrom: 1200 },        // low: cumulus
+    { base: 1700, cell: 60, n: 100, scale: 520, seed: 37, coverBase: 0.3, coverMul: 0.8, alpha: 0.7, fadeFrom: 3000 },                  // middle: altocumulus
+    { base: 4300, cell: 120, n: 100, scale: 700, seed: 71, coverBase: 0.3, coverMul: 0.3, alpha: 0.45, fadeFrom: 6000 },                // high: thin cirrus
+  ];
+
+  // The cloud density of one layer at ground position (X, Z) at time t (seconds): 0 is clear, 1 is
+  // cloud. Three octaves of value noise, drifting with the wind. The threshold moves with the cover,
+  // so more cover means more of the noise is cloud. The ramp is soft, so the edges are soft.
+  export function cloudDensityLayer(X: number, Z: number, t: number, weatherCover: number, windScale: number, layer: CloudLayer): number {
+    const u = (X - WIND.X * windScale * t) / layer.scale + layer.seed, v = (Z - WIND.Z * windScale * t) / layer.scale + layer.seed * 0.7;
     const f = noise2(u, v) * 0.55 + noise2(u * 2.1 + 5.2, v * 2.1 + 1.3) * 0.3 + noise2(u * 4.3 + 9.1, v * 4.3 + 7.7) * 0.15;
+    const cover = layer.coverBase + (weatherCover - CLOUD_COVER) * layer.coverMul;
     const th = 0.52 - (cover - CLOUD_COVER) * 0.45;
     const x = (f - th) * 6;
     return x <= 0 ? 0 : x >= 1 ? 1 : x;
+  }
+
+  // The low deck's density (the first layer), as before.
+  export function cloudDensity(X: number, Z: number, t: number, cover = CLOUD_COVER, windScale = 1): number {
+    return cloudDensityLayer(X, Z, t, cover, windScale, CLOUD_LAYERS[0]);
   }
 
   // The object tint: how much of the sun's colour and the sky's light reaches things on the ground,

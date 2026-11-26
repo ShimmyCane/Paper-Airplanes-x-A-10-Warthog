@@ -117,3 +117,10 @@
 - **Replace a constant with a function of position before moving the thing.** The road became `roadX(Z)` and `roadHalf(Z)`. Every caller had a Z, so the change was mechanical, and vehicles on the road follow it through a stored offset.
 - **A road drawn before the lake reads as a bridge once it has a deck and rails.** The road branch already came first in the ground painting, so a bridge needed only a different colour and edge rails over water.
 - **Hills are a different kind of change.** A flat ground is assumed by the plane's floor, the painting and object placement. Do not fake hills in one of those places; add a height field used by all three in one increment.
+
+## 2026-11-26 (round 20, rings higher, three cloud layers)
+
+- **A layer drawn only on sky pixels is invisible from above.** The cloud was blended into sky rays only, so looking down from above the deck the land showed no cloud at all, only a haze. Anything that sits between the camera and the ground must be blended into the ground pixels as well, limited to the distance to the ground.
+- **The same deck looks wrong from both sides.** Seen from above, the top is bright and sun-lit; seen from below, the underside is in its own shade. Give each side its own colour rule, and pick the side from the camera's height relative to the layer.
+- **Three layers need three grids, with the cost kept in check.** The low deck keeps 30 m cells; the middle and high layers use coarser cells (60 m, 120 m) and fewer of them. Recomputing all three together every 0.4 s stays within a frame budget.
+- **Check the sky from a tilted camera.** The default views (horizon, straight down) hide the underside. A nose-up shot showed the underside; a shot from above showed the top.

@@ -150,3 +150,10 @@ A browser 2.5D pixel-art flight game, built small enough to read, so Jimmy can s
 - Roads: `roadX(Z)` and `roadHalf(Z)` make the main road meander and vary in width. Vehicles follow the bends. A road over a lake is a bridge deck with rails.
 - Not done: hills (needs a height field in the plane's floor, the ground painting and object placement).
 - Checks: all flight and rule checks pass (`npm test`); browser: the rings and the meandering road were checked.
+
+## Round 20 (convo v0.26, 0.27): rings higher, three cloud layers
+
+- Rings are 200 m higher (260–310 m above the ground) and 420 m apart; dots are 420 m apart and stay on the ground.
+- Clouds: three layers (`CLOUD_LAYERS` in `light.ts`): low cumulus at 520 m, middle altocumulus at 1700 m, thin high cirrus at 4300 m. Each has its own noise seed, cover (moved by the weather) and fade distance. Each layer is seen from above (bright top) and below (grey underside), and the ground under a deck is covered from above.
+- Checks: all flight and rule checks pass; browser: clouds seen from the ground, from above, and from below.
+- Not verified: the middle and high layers are faint; the low deck is soft rather than cumulus-shaped. Likely next: stronger shapes, and the iPad frame rate with three grids.
