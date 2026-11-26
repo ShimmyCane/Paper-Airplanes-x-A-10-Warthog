@@ -54,8 +54,17 @@ var PA;
     }
     PA.random = random;
     PA.SEA_X = 1300; // the coast runs north near here; east of it is the sea
-    PA.ROAD_X = -120; // the main road runs north along this line
-    PA.ROAD_W = 7; // half its width, metres
+    PA.ROAD_X = -120; // the main road runs north, meandering about this line
+    PA.ROAD_W = 7; // half its width, metres, on average
+    // The road is not straight: its centre swings east and west, and it widens and narrows.
+    function roadX(Z) {
+        return PA.ROAD_X + 70 * Math.sin(Z / 700);
+    }
+    PA.roadX = roadX;
+    function roadHalf(Z) {
+        return PA.ROAD_W + 2.5 * Math.sin(Z / 380 + 1.3); // about 4.5 to 9.5 m either side
+    }
+    PA.roadHalf = roadHalf;
     // One gentle wind for the whole world (metres a second): smoke and flags lean with it.
     PA.WIND = { X: 2.2, Z: -1.2 };
     PA.RAIL_X = -320; // the railway runs north along this line
@@ -132,13 +141,13 @@ var PA;
     }
     PA.pondAt = pondAt;
     function isLake(X, Z) {
-        if (isSea(X, Z) || Math.abs(X - PA.ROAD_X) < 30 || Math.abs(X - PA.RAIL_X) < 20)
+        if (isSea(X, Z) || Math.abs(X - roadX(Z)) < 30 || Math.abs(X - PA.RAIL_X) < 20)
             return false;
         return wildValue(X, Z) > PA.LAKE_LEVEL;
     }
     PA.isLake = isLake;
     function isForest(X, Z) {
-        if (isSea(X, Z) || Math.abs(X - PA.ROAD_X) < 16 || Math.abs(X - PA.RAIL_X) < 10)
+        if (isSea(X, Z) || Math.abs(X - roadX(Z)) < 16 || Math.abs(X - PA.RAIL_X) < 10)
             return false;
         const w = wildValue(X, Z);
         return w > PA.FOREST_LEVEL && w < PA.LAKE_LEVEL - 0.02;
@@ -217,11 +226,11 @@ var PA;
     PA.target = target;
     // A place on land for a cluster. It keeps off the road and the railway, so no house or
     // barn ends up sitting on a line.
-    function landSite(rand) {
+    function landSite(rand, Z = 0) {
         let X = 0;
         for (let tries = 0; tries < 8; tries++) {
             X = (rand() - 0.5) * 900;
-            if (Math.abs(X - PA.ROAD_X) > 40 && Math.abs(X - PA.RAIL_X) > 40)
+            if (Math.abs(X - roadX(Z)) > 40 && Math.abs(X - PA.RAIL_X) > 40)
                 break;
         }
         return X;
@@ -236,19 +245,21 @@ var PA;
         for (let i = 0; i < count; i++) {
             const Z = baseZ + i * PA.SPACING + rand() * 80;
             const roll = rand();
-            const landX = landSite(rand);
+            const landX = landSite(rand, Z);
             // Some vehicles drive along the road, north or south.
             const driver = (kind, X, Z) => {
                 const t = target(kind, X, Z, rand);
-                if (PA.DRIVES[kind] !== undefined && rand() < 0.5)
+                if (PA.DRIVES[kind] !== undefined && rand() < 0.5) {
                     t.vZ = (rand() < 0.5 ? -1 : 1) * PA.DRIVES[kind];
+                    t.roadOff = X - roadX(Z);
+                }
                 return t;
             };
             if (roll < 0.32) {
                 // Army: tanks, carriers, a SAM site or a flak gun.
                 const X = landX;
-                out.push(driver('tank_mbt', PA.ROAD_X + 4, Z));
-                out.push(driver(rand() < 0.5 ? 'tank_light' : 'apc', PA.ROAD_X - 6, Z + 4));
+                out.push(driver('tank_mbt', roadX(Z) + 4, Z));
+                out.push(driver(rand() < 0.5 ? 'tank_light' : 'apc', roadX(Z) - 6, Z + 4));
                 if (!guns)
                     continue;
                 if (rand() < 0.5)
@@ -261,7 +272,7 @@ var PA;
                 const X = landX;
                 out.push(target('farm', X, Z, rand));
                 out.push(target('barn', X + 12, Z + 9, rand));
-                out.push(driver('truck', PA.ROAD_X + 3, Z + 6));
+                out.push(driver('truck', roadX(Z + 6) + 3, Z + 6));
             }
             else if (roll < 0.66) {
                 // Town: towers, barracks and a SAM site.
@@ -327,7 +338,7 @@ var PA;
     PA.isOrderedGoal = isOrderedGoal;
     PA.MISSIONS = [
         { name: 'Dots', sunStart: 6.6, brief: 'Fly roughly over each dot, in order, up to fifty. The next one is lit on the radar. End mission moves on.', goal: 'dots', count: 50, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
-        { name: 'Rings', sunStart: 9.5, brief: 'Fly through each ring, in order. Nothing shoots at you on this one.', goal: 'rings', count: 8, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
+        { name: 'Rings', sunStart: 9.5, brief: 'Fly through each ring, in order. They start huge and high, and get smaller as you go. Nothing shoots at you.', goal: 'rings', count: 20, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
         { name: 'Circuit', sunStart: 13.5, brief: 'Two laps of the circuit against two friends and two allied planes. Hold your speed.', goal: 'race', count: 2, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
         { name: 'Range Day', sunStart: 15.2, brief: 'Practice on the range. Three ground targets, no fighters, no guns.', goal: 'ground', count: 3, ships: 0, guns: false, start: 'takeoff', firstWave: 0, waveEvery: 60, wave: 0 },
         { name: 'First Contact', sunStart: 16.8, brief: 'One fighter now and then. Hold the nose on a target until it locks.', goal: 'ground', count: 4, ships: 0, guns: false, start: 'takeoff', firstWave: 90, waveEvery: 90, wave: 2 },
@@ -351,19 +362,35 @@ var PA;
     // They run north from the runway. Dots get further apart and smaller as you go (up to 50 of
     // them), so the first few are easy and the later ones ask for more distance and precision.
     PA.DOT_MAX = 50;
+    // The course is not a straight line: it wanders left and right, and the rings are higher and
+    // bigger at the start. A ring's size shrinks as you go on (70 m at first, 12 m at the end).
     function trainingCourse(rand, count, dot) {
         const out = [];
-        let Z = 380;
+        let Z = dot ? 380 : 520;
         for (let i = 0; i < count; i++) {
-            const X = (rand() - 0.5) * 500;
-            if (dot) {
+            const X = Math.sin(i * 0.9) * (dot ? 120 : 220) + (rand() - 0.5) * 60;
+            const last = dot && i === count - 1;
+            if (dot && !last) {
                 out.push({ X, Z: Z + rand() * 60, h: groundAt(X, Z), r: Math.max(24, 40 - i * 0.3), passed: false, dot: true });
                 Z += 300 + Math.min(i, 25) * 14; // further apart, up to about 650 m
             }
-            else {
-                out.push({ X, Z: Z + rand() * 60, h: groundAt(X, Z) + 25 + rand() * 30, r: 10, passed: false, yaw: 0 });
-                Z += 200;
+            else if (last) {
+                // The end of the dots is a big ring to fly through, not a dot.
+                out.push({ X, Z, h: groundAt(X, Z) + 50, r: 60, passed: false });
             }
+            else {
+                const r = Math.max(12, 70 - i * 3);
+                out.push({ X, Z, h: groundAt(X, Z) + 60 + rand() * 50, r, passed: false });
+                Z += 260;
+            }
+        }
+        // Each ring faces the next one, so the course reads as a path through the air.
+        for (let i = 0; i < out.length; i++) {
+            const a = out[i], b = out[Math.min(i + 1, out.length - 1)];
+            const prev = out[Math.max(i - 1, 0)];
+            const dx = i + 1 < out.length ? b.X - a.X : a.X - prev.X, dz = i + 1 < out.length ? b.Z - a.Z : a.Z - prev.Z;
+            if (!a.dot)
+                a.yaw = Math.atan2(dx, dz || 1);
         }
         return out;
     }
@@ -1382,7 +1409,7 @@ var PA;
         clAlpha: 4.5, // lift per radian of angle of attack
         camber: 0.22, // lift with the nose exactly on the flight path (a curved wing)
         stall: 0.26, // radians, about 15 degrees
-        maxThrust: 6,
+        maxThrust: 16, // the engine: boost reaches about 250 knots level (it was 6, about 125 knots)
         pitchRate: 1.1, // radians per second when the nose is moved
         maxPitch: 1.2, // radians (about 69 degrees): the nose cannot go over the top, or thrust would push backward
         turnRate: 1.0, // radians per second of yaw at full steering
@@ -3435,11 +3462,14 @@ var PA;
             this.flash(s.X, s.h, s.Z, '#ffe2a0');
         }
         keepTargets() {
+            var _a;
             const m = this.mission;
             m.targets = m.targets.filter(t => (t.alive || t.Z > this.plane.Z - 150) && !(t.faction === 'enemy' && !t.alive));
             for (const t of m.targets) {
-                if (t.vZ !== undefined && t.alive)
+                if (t.vZ !== undefined && t.alive) {
                     t.Z += t.vZ * (1 / 30);
+                    t.X = PA.roadX(t.Z) + ((_a = t.roadOff) !== null && _a !== void 0 ? _a : 0); // a vehicle follows the bends of the road
+                }
             }
             const left = m.targets.filter(t => t.alive && t.faction === undefined).length;
             if (left < KEEP_AHEAD) {
@@ -3824,21 +3854,38 @@ var PA;
         }
         else {
             readFields(X, Z);
-            const roadD = Math.abs(X - PA.ROAD_X), railD = Math.abs(X - PA.RAIL_X);
+            const halfW = PA.roadHalf(Z);
+            const roadD = Math.abs(X - PA.roadX(Z)), railD = Math.abs(X - PA.RAIL_X);
             // Country lanes: a loose grid, east-west every 430 m and north-south every 510 m, in farm and open land.
             const laneZ = Math.abs(mod(Z - LANE_Z0 + 215, 430) - 215), laneX = Math.abs(mod(X - LANE_X0 + 255, 510) - 255);
             const laneD = Math.min(laneZ, laneX);
-            if (roadD < PA.ROAD_W + 1.6) {
-                if (roadD > PA.ROAD_W) {
+            if (roadD < halfW + 1.6) {
+                if (roadD > halfW) {
                     r = 196;
                     g = 184;
                     b = 160;
+                }
+                else if (fWild > PA.LAKE_LEVEL) {
+                    // A bridge: a plank deck over the water, with a rail on each side.
+                    r = 170;
+                    g = 150;
+                    b = 122;
+                    if (roadD > halfW - 1.1) {
+                        r = 96;
+                        g = 90;
+                        b = 84;
+                    }
+                    if (mod(Z, 3) < 0.4) {
+                        r *= 0.92;
+                        g *= 0.92;
+                        b *= 0.92;
+                    }
                 }
                 else {
                     r = 116;
                     g = 121;
                     b = 130;
-                    if (roadD > PA.ROAD_W - 1.2 && roadD < PA.ROAD_W - 0.6) {
+                    if (roadD > halfW - 1.2 && roadD < halfW - 0.6) {
                         r = 236;
                         g = 236;
                         b = 230;

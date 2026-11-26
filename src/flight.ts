@@ -19,7 +19,7 @@ namespace PA {
     clAlpha: 4.5,     // lift per radian of angle of attack
     camber: 0.22,     // lift with the nose exactly on the flight path (a curved wing)
     stall: 0.26,      // radians, about 15 degrees
-    maxThrust: 6,
+    maxThrust: 16,      // the engine: boost reaches about 250 knots level (it was 6, about 125 knots)
     pitchRate: 1.1,   // radians per second when the nose is moved
     maxPitch: 1.2,    // radians (about 69 degrees): the nose cannot go over the top, or thrust would push backward
     turnRate: 1.0,    // radians per second of yaw at full steering

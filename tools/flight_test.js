@@ -29,7 +29,7 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
     if (i > 60 * 20) maxAbsVy = Math.max(maxAbsVy, Math.abs(p.vy));
   }
   check('level flight: holds height with the nose (after 20 s)', maxAbsVy < 1.0, 'max |vy| = ' + maxAbsVy.toFixed(2) + ' m/s');
-  check('level flight: speed holds with throttle 0.4', Math.abs(p.speed - 60) < 15, 'speed = ' + p.speed.toFixed(1) + ' m/s');
+  check('level flight: speed settles near 94 m/s with throttle 0.4 (the stronger engine)', Math.abs(p.speed - 94) < 10, 'speed = ' + p.speed.toFixed(1) + ' m/s');
 }
 
 // 2. Full power climbs with the nose a little up.
@@ -239,7 +239,7 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
     const m = PA.makeMission('jet', seed, PA.MISSIONS[12]);
     for (const t of m.targets) {
       if (!['farm', 'barn', 'city', 'hangar', 'barracks'].includes(t.kind)) continue;
-      if (Math.abs(t.X - PA.ROAD_X) < 25 || Math.abs(t.X - PA.RAIL_X) < 25) onLine++;
+      if (Math.abs(t.X - PA.roadX(t.Z)) < 25 || Math.abs(t.X - PA.RAIL_X) < 25) onLine++;
     }
   }
   check('ground: no building on the road or the railway', onLine === 0, 'on a line ' + onLine);
@@ -688,8 +688,8 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   g.onSound = () => {};
   g.missionNumber = 1; g.newFlight(21);
   const hs = g.mission.hoops;
-  check('dots: up to fifty dots, the first mission, no fighters or guns', g.missionSpec.goal === 'dots' && hs.length === 50 && hs.every(h => h.dot) && !g.missionSpec.guns && g.missionSpec.wave === 0);
-  check('dots: later ones are further apart and smaller', hs[49].Z - hs[48].Z > hs[1].Z - hs[0].Z && hs[49].r < hs[0].r);
+  check('dots: up to fifty, the first mission, no fighters or guns; the last is a big ring', g.missionSpec.goal === 'dots' && hs.length === 50 && hs.slice(0, 49).every(h => h.dot) && !hs[49].dot && hs[49].r === 60 && !g.missionSpec.guns && g.missionSpec.wave === 0);
+  check('dots: later ones are further apart and smaller', hs[48].Z - hs[47].Z > hs[1].Z - hs[0].Z && hs[48].r < hs[0].r);
   const at = (h, extra) => { g.plane.X = h.X; g.plane.Z = h.Z; g.plane.h = PA.groundAt(h.X, h.Z) + extra; g.plane.vx = 50; g.plane.vy = 0; };
   at(hs[1], 30); g.update(1 / 30);
   check('dots: a dot out of order does not count', g.hoopsPassed === 0 && !hs[1].passed);
@@ -710,10 +710,10 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   g.onSound = () => {};
   g.missionNumber = 2; g.newFlight(22);
   const hs = g.mission.hoops;
-  check('rings: eight rings, small, facing north', g.missionSpec.goal === 'rings' && hs.length === 8 && hs.every(h => !h.dot && h.r === 10));
-  g.plane.X = hs[0].X; g.plane.Z = hs[0].Z; g.plane.h = hs[0].h + 30; g.plane.vx = 50; g.plane.vy = 0;
+  check('rings: twenty rings, the first big and high, then smaller', g.missionSpec.goal === 'rings' && hs.length === 20 && hs.every(h => !h.dot) && hs[0].r === 70 && hs[19].r < 20 && hs[0].h - PA.groundAt(hs[0].X, hs[0].Z) > 50);
+  g.plane.X = hs[0].X; g.plane.Z = hs[0].Z; g.plane.h = hs[0].h + hs[0].r + 5; g.plane.vx = 50; g.plane.vy = 0;
   g.update(1 / 30);
-  check('rings: a ring flown 30 m high does not count', !hs[0].passed);
+  check('rings: a ring flown well above it does not count', !hs[0].passed);
   g.plane.X = hs[0].X; g.plane.Z = hs[0].Z; g.plane.h = hs[0].h; g.plane.vx = 50; g.plane.vy = 0;
   g.update(1 / 30);
   check('rings: flown through at its height, it counts', hs[0].passed && g.hoopsPassed === 1);

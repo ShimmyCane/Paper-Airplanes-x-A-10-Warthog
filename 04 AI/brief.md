@@ -142,3 +142,11 @@ A browser 2.5D pixel-art flight game, built small enough to read, so Jimmy can s
 - ⚙️ has a "Questions for Jimmy" group, answered in the notes box.
 - Checks: 152 flight and rule checks pass (`npm test`); browser at three sizes, no errors, no scroll.
 - Not verified: frame rate on an iPad with the weather pass; thunder and rain on an iPad; the tint at dawn; the cloud feel in each weather.
+
+## Round 19 (convo v0.25, 0.26): rings, the course, the road, speed
+
+- Mission 2 (Rings): twenty rings, high (60–110 m), the first 70 m across, shrinking to 12 m; the course wanders and each ring faces the next. The fiftieth dot of mission 1 is a big ring (60 m).
+- Engine: `maxThrust` 6 → 16. Boost about 250 knots level, the default lever about 190. Deliberately faster than the real A-10 to feel fast.
+- Roads: `roadX(Z)` and `roadHalf(Z)` make the main road meander and vary in width. Vehicles follow the bends. A road over a lake is a bridge deck with rails.
+- Not done: hills (needs a height field in the plane's floor, the ground painting and object placement).
+- Checks: all flight and rule checks pass (`npm test`); browser: the rings and the meandering road were checked.

@@ -1431,7 +1431,10 @@ namespace PA {
       const m = this.mission;
       m.targets = m.targets.filter(t => (t.alive || t.Z > this.plane.Z - 150) && !(t.faction === 'enemy' && !t.alive));
       for (const t of m.targets) {
-        if (t.vZ !== undefined && t.alive) t.Z += t.vZ * (1 / 30);
+        if (t.vZ !== undefined && t.alive) {
+          t.Z += t.vZ * (1 / 30);
+          t.X = roadX(t.Z) + (t.roadOff ?? 0);   // a vehicle follows the bends of the road
+        }
       }
       const left = m.targets.filter(t => t.alive && t.faction === undefined).length;
       if (left < KEEP_AHEAD) {
