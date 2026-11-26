@@ -837,5 +837,55 @@ const still = { pitch: 0, yaw: 0, throttle: 0 };
   check('map: a flight carries its own climate and wind', g.climate === PA.climateFor(g.seed) && g.wind[0] === PA.windFor(g.seed)[0]);
 }
 
+// 47. Fifteen percent: a nose held 15 % up or down, with the helper off, never stalls at cruise or boost.
+//     The stick at 15 % holds the nose the same way. (Idle thrust climbs can still run out of speed.)
+{
+  const hold15 = (stick, thr, v0) => {
+    const p = new PA.Aircraft(true);
+    p.assist = false;
+    p.start(0, 0, 400, v0, 0, 0, thr);
+    let st = 0;
+    for (let i = 0; i < 30 * 60; i++) { p.step(1 / 60, { pitch: stick, yaw: 0, throttle: thr }, flat); if (p.stalled) st++; }
+    return st / 60;
+  };
+  const nose15 = (sign, thr, v0) => {
+    const p = new PA.Aircraft(true);
+    p.assist = false;
+    p.start(0, 0, 400, v0, 0, 0, thr);
+    p.pitch = sign * Math.atan(0.15);
+    let st = 0;
+    for (let i = 0; i < 20 * 60; i++) { p.step(1 / 60, still, flat); if (p.stalled) st++; }
+    return st / 60;
+  };
+  let worstStick = 0, worstNose = 0;
+  for (const thr of [0.6, 1]) for (const v0 of [40, 52, 70]) {
+    worstStick = Math.max(worstStick, hold15(0.15, thr, v0), hold15(-0.15, thr, v0));
+    worstNose = Math.max(worstNose, nose15(1, thr, v0), nose15(-1, thr, v0));
+  }
+  check('15 %: the stick held up or down never stalls at cruise or boost', worstStick === 0, 'worst ' + worstStick + ' s');
+  check('15 %: a nose set 15 % up or down never stalls at cruise or boost', worstNose === 0, 'worst ' + worstNose + ' s');
+  // A snap to full stick is still a stall with the helper off: the 15 % fix does not take away real flying.
+  const snap = new PA.Aircraft(true);
+  snap.assist = false;
+  snap.start(0, 0, 200, 50, 0.05, 0, 0.36);
+  let snapStalled = 0;
+  for (let i = 0; i < 120; i++) { snap.step(1 / 60, { pitch: 1, yaw: 0, throttle: 0.36 }, flat); if (snap.stalled) snapStalled++; }
+  check('15 %: a 2 s full-stick pull still stalls with the helper off (real flying)', snapStalled > 0, 'stalled frames ' + snapStalled);
+}
+
+// 48. Tight turns: at boost speed a full-steering turn circles in about 80 m (under 90 m), not 130 m.
+{
+  const p = new PA.Aircraft(true);
+  p.assist = true;
+  p.start(0, 0, 300, 128, 0, 0, 1);
+  // turn 90 degrees: the chord between the two points is R·√2 for radius R
+  const x0 = p.X, z0 = p.Z;
+  let t = 0;
+  while (p.yaw < Math.PI / 2 && t < 10) { p.step(1 / 240, { pitch: 0, yaw: 1, throttle: 1 }, flat); t += 1 / 240; }
+  const chord = Math.hypot(p.X - x0, p.Z - z0);
+  const radius = chord / Math.SQRT2;
+  check('turn: at boost (250 knots) a full-steering turn is under 90 m across', radius < 90, 'radius ' + radius.toFixed(0) + ' m, 90 degrees in ' + t.toFixed(2) + ' s');
+}
+
 console.log(failures === 0 ? '\nAll flight checks passed.' : '\n' + failures + ' check(s) failed.');
 process.exit(failures ? 1 : 0);

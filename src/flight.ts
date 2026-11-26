@@ -22,9 +22,9 @@ namespace PA {
     maxThrust: 16,      // the engine: boost reaches about 250 knots level (it was 6, about 125 knots)
     pitchRate: 1.1,   // radians per second when the nose is moved
     maxPitch: 1.2,    // radians (about 69 degrees): the nose cannot go over the top, or thrust would push backward
-    turnRate: 1.0,    // radians per second of yaw at full steering
+    turnRate: 1.6,    // radians per second of yaw at full steering (was 1.0): the turn circles about 80 m at boost speed, was 130 m
     bankMax: 0.6,     // radians of bank at full steering (the wings tilt into the turn)
-    stability: 0.5,   // the tail pulls the nose back toward the flight path
+    stability: 1.0,   // the tail pulls the nose back toward the flight path (was 0.5): a 15 % nose-up or nose-down hold stays clear of the stall
     // The flight helper (a setting, on by default): what a modern jet's computer does.
     alphaGuard: 0.2,  // radians (about 11 degrees): the nose stops short of the stall angle
     cruiseSpeed: 52,  // m/s, about 100 knots: the engine adds power below this
