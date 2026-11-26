@@ -1,6 +1,6 @@
 // Shared numbers for the whole game. Change a number here, rebuild, reload.
 namespace PA {
-  export const VERSION = '0.25 (2026-11-25: real-time sun from each mission\'s own start, imagined weather, objects take the sun\'s colour, questions in ⚙️)';
+  export const VERSION = '0.29 (2026-11-26: a 15 % nose-up or nose-down hold no longer stalls, tighter turns at boost, smoother pitch)';
 
   // Internal resolution. The canvas is small on purpose: every pixel is a
   // "pixel-art pixel", and the page scales it up with no smoothing.

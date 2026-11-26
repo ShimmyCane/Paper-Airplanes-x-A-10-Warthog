@@ -130,3 +130,9 @@
 - **Random per map, not one fixed setting.** Climate, weather mix and wind come from the map's seed, so two maps differ, and the same map repeats. Pick a climate first, then draw the weather from that climate's table; a fixed global table hid the difference between maps.
 - **Wind is state, not a constant.** A fixed wind vector was read in five places (clouds, smoke, dust, flags, puffs). Store it on the flight and pass it down; a test checks the flight carries its own.
 - **Check that the random outcomes really differ.** The climate tests compare shares over thousands of seeds (stormy has more thunder than dry), not a single map.
+
+## 2026-11-26 (round 22, 15 % pitch and tight turns)
+
+- **A held stick gives a steady angle of attack: pitch rate × stick ÷ stability.** With the stick at 15 %, the nose sits about 19° above the flight path at the old tuning, past the 15° stall. Raising stability (the tail's pull back to the path) from 0.5 to 1.0 brings that under the stall with the pull test still stalling.
+- **Turn radius is speed ÷ yaw rate.** At boost (about 128 m/s) a 1.0 rad/s turn circles 130 m; 1.6 rad/s gives about 80 m. Check it with a chord over 90°, not the yaw rate alone.
+- **Idle thrust still runs out of speed in a long climb.** Holding the nose up at idle with the helper off still stalls after several seconds. That is energy, not a gain setting, so the test covers cruise and boost only.
